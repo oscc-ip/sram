@@ -25,18 +25,21 @@ module axi4_sram #(
     parameter int AXI_DATA_WIDTH  = 64,
     parameter int AXI_ID_WIDTH    = 4,
     parameter int AXI_USER_WIDTH  = 4,
-    parameter int SRAM_BLOCK_SIZE = 4    // each sram block size is 4KB
+    parameter int SRAM_BIT_WIDTH  = 64,
+    parameter int SRAM_WORD_DEPTH = 512,
+    parameter int SRAM_BLOCK_SIZE = 4     // each sram block size is 4KB
 ) (
     // verilog_format: off
     axi4_if.slave                        axi4
     // verilog_format: on
-    // output logic                        en_o,
-    // output logic                        wen_o,
-    // output logic [AXI_DATA_WIDTH/8-1:0] bm_o,
-    // output logic [  AXI_ADDR_WIDTH-1:0] addr_o,
-    // input  logic [  AXI_DATA_WIDTH-1:0] dat_i,
-    // output logic [  AXI_DATA_WIDTH-1:0] dat_o
 );
+
+  logic                        s_ram_en;
+  logic                        s_ram_wen;
+  logic [AXI_DATA_WIDTH/8-1:0] s_ram_bm;
+  logic [  AXI_ADDR_WIDTH-1:0] s_ram_addr;
+  logic [  AXI_DATA_WIDTH-1:0] s_ram_dat_i;
+  logic [  AXI_DATA_WIDTH-1:0] s_ram_dat_o;
 
   // AXI has the following rules governing the use of bursts:
   // - for wrapping bursts, the burst length must be 2, 4, 8, or 16
@@ -102,152 +105,151 @@ module axi4_sram #(
     // calculate consecutive address
     cons_addr = aligned_address + (s_cnt_q << LOG_NR_BYTES);
 
-    // Transaction attributes
-    // default assignments
+    // transaction attributes
     s_state_d = s_state_q;
     s_axi_req_d = s_axi_req_q;
     s_req_addr_d = s_req_addr_q;
     s_cnt_d = s_cnt_q;
     // sram
-    dat_o = axi4.w_data;
-    bm_o = axi4.w_strb;
-    wen_o = 1'b0;
-    en_o = 1'b0;
-    addr_o = '0;
+    s_ram_dat_o = axi4.wdata;
+    s_ram_bm = axi4.wstrb;
+    s_ram_wen = 1'b0;
+    s_ram_en = 1'b0;
+    s_ram_addr = '0;
     // axi4 request
-    axi4.aw_ready = 1'b0;
-    axi4.ar_ready = 1'b0;
+    axi4.awready = 1'b0;
+    axi4.arready = 1'b0;
     // axi4 read
-    axi4.r_valid = 1'b0;
-    axi4.r_data = dat_i;
-    axi4.r_resp = '0;
-    axi4.r_last = '0;
-    axi4.r_id = s_axi_req_q.id;
-    axi4.r_user = 1'b0;
+    axi4.rvalid = 1'b0;
+    axi4.rdata = s_ram_dat_i;
+    axi4.rresp = '0;
+    axi4.rlast = '0;
+    axi4.rid = s_axi_req_q.id;
+    axi4.ruser = 1'b0;
     // axi4 write
-    axi4.w_ready = 1'b0;
+    axi4.wready = 1'b0;
     // axi4 response
-    axi4.b_valid = 1'b0;
-    axi4.b_resp = 1'b0;
-    axi4.b_id = 1'b0;
-    axi4.b_user = 1'b0;
+    axi4.bvalid = 1'b0;
+    axi4.bresp = 1'b0;
+    axi4.bid = 1'b0;
+    axi4.buser = 1'b0;
 
     case (s_state_q)
       IDLE: begin
-        if (axi4.ar_valid) begin
-          axi4.ar_ready = 1'b1;
-          s_axi_req_d   = {axi4.ar_id, axi4.ar_addr, axi4.ar_len, axi4.ar_size, axi4.ar_burst};
-          s_state_d     = READ;
+        if (axi4.arvalid) begin
+          axi4.arready = 1'b1;
+          s_axi_req_d  = {axi4.arid, axi4.araddr, axi4.arlen, axi4.arsize, axi4.arburst};
+          s_state_d    = READ;
           //  we can request the first address, this saves us time
-          en_o          = 1'b1;
-          addr_o        = axi4.ar_addr;
-          s_req_addr_d  = axi4.ar_addr;
-          s_cnt_d       = 1;
-        end else if (axi4.aw_valid) begin
-          axi4.aw_ready = 1'b1;
-          axi4.w_ready  = 1'b1;
-          addr_o        = axi4.aw_addr;
-          s_axi_req_d   = {axi4.aw_id, axi4.aw_addr, axi4.aw_len, axi4.aw_size, axi4.aw_burst};
-          // we've got our first w_valid so start the write process
-          if (axi4.w_valid) begin
-            en_o      = 1'b1;
-            wen_o     = 1'b1;
-            s_state_d = (axi4.w_last) ? SEND_B : WRITE;
+          s_ram_en     = 1'b1;
+          s_ram_addr   = axi4.araddr;
+          s_req_addr_d = axi4.araddr;
+          s_cnt_d      = 1;
+        end else if (axi4.awvalid) begin
+          axi4.awready = 1'b1;
+          axi4.wready  = 1'b1;
+          s_ram_addr   = axi4.awaddr;
+          s_axi_req_d  = {axi4.awid, axi4.awaddr, axi4.awlen, axi4.awsize, axi4.awburst};
+          // we've got our first wvalid so start the write process
+          if (axi4.wvalid) begin
+            s_ram_en  = 1'b1;
+            s_ram_wen = 1'b1;
+            s_state_d = (axi4.wlast) ? SEND_B : WRITE;
             s_cnt_d   = 1;
-            // we still have to wait for the first w_valid to arrive
+            // we still have to wait for the first wvalid to arrive
           end else s_state_d = WAIT_WVALID;
         end
       end
 
-      // we are still missing a w_valid
+      // we are still missing a wvalid
       WAIT_WVALID: begin
-        axi4.w_ready = 1'b1;
-        addr_o       = s_axi_req_q.addr;
+        axi4.wready = 1'b1;
+        s_ram_addr  = s_axi_req_q.addr;
         // we can now make our first request
-        if (axi4.w_valid) begin
-          en_o      = 1'b1;
-          wen_o     = 1'b1;
-          s_state_d = (axi4.w_last) ? SEND_B : WRITE;
+        if (axi4.wvalid) begin
+          s_ram_en  = 1'b1;
+          s_ram_wen = 1'b1;
+          s_state_d = (axi4.wlast) ? SEND_B : WRITE;
           s_cnt_d   = 1;
         end
       end
 
       READ: begin
         // keep request to memory high
-        en_o         = 1'b1;
-        addr_o       = s_req_addr_q;
+        s_ram_en    = 1'b1;
+        s_ram_addr  = s_req_addr_q;
         // send the response
-        axi4.r_valid = 1'b1;
-        axi4.r_data  = dat_i;
-        axi4.r_id    = s_axi_req_q.id;
-        axi4.r_last  = (s_cnt_q == s_axi_req_q.len + 1);
+        axi4.rvalid = 1'b1;
+        axi4.rdata  = s_ram_dat_i;
+        axi4.rid    = s_axi_req_q.id;
+        axi4.rlast  = (s_cnt_q == s_axi_req_q.len + 1);
 
         // check that the master is ready, the axi4 must not wait on this
-        if (axi4.r_ready) begin
+        if (axi4.rready) begin
           // handle the correct burst type
           case (s_axi_req_q.burst)
-            FIXED, INCR: addr_o = cons_addr;
+            FIXED, INCR: s_ram_addr = cons_addr;
             WRAP: begin
               // check if the address reached warp boundary
               if (cons_addr == upper_wrap_boundary) begin
-                addr_o = wrap_boundary;
+                s_ram_addr = wrap_boundary;
                 // address warped beyond boundary
               end else if (cons_addr > upper_wrap_boundary) begin
-                addr_o = s_axi_req_q.addr + ((s_cnt_q - s_axi_req_q.len) << LOG_NR_BYTES);
+                s_ram_addr = s_axi_req_q.addr + ((s_cnt_q - s_axi_req_q.len) << LOG_NR_BYTES);
                 // we are still in the incremental regime
               end else begin
-                addr_o = cons_addr;
+                s_ram_addr = cons_addr;
               end
             end
           endcase
           // we need to change the address here for the upcoming request
           // we sent the last byte -> go back to idle
-          if (axi4.r_last) begin
+          if (axi4.rlast) begin
             s_state_d = IDLE;
             // we already got everything
-            en_o      = 1'b0;
+            s_ram_en  = 1'b0;
           end
           // save the request address for the next cycle
-          s_req_addr_d = addr_o;
+          s_req_addr_d = s_ram_addr;
           // we can decrease the counter as the master has consumed the read data
           s_cnt_d      = s_cnt_q + 1;
         end
       end
 
       WRITE: begin
-        axi4.w_ready = 1'b1;
+        axi4.wready = 1'b1;
         // consume a word here
-        if (axi4.w_valid) begin
-          en_o  = 1'b1;
-          wen_o = 1'b1;
+        if (axi4.wvalid) begin
+          s_ram_en  = 1'b1;
+          s_ram_wen = 1'b1;
           // handle the correct burst type
           case (s_axi_req_q.burst)
 
-            FIXED, INCR: addr_o = cons_addr;
+            FIXED, INCR: s_ram_addr = cons_addr;
             WRAP: begin
               // check if the address reached warp boundary
               if (cons_addr == upper_wrap_boundary) begin
-                addr_o = wrap_boundary;
+                s_ram_addr = wrap_boundary;
                 // address warped beyond boundary
               end else if (cons_addr > upper_wrap_boundary) begin
-                addr_o = s_axi_req_q.addr + ((s_cnt_q - s_axi_req_q.len) << LOG_NR_BYTES);
+                s_ram_addr = s_axi_req_q.addr + ((s_cnt_q - s_axi_req_q.len) << LOG_NR_BYTES);
                 // we are still in the incremental regime
               end else begin
-                addr_o = cons_addr;
+                s_ram_addr = cons_addr;
               end
             end
           endcase
           // save the request address for the next cycle
-          s_req_addr_d = addr_o;
+          s_req_addr_d = s_ram_addr;
           // we can decrease the counter as the master has consumed the read data
           s_cnt_d      = s_cnt_q + 1;
 
-          if (axi4.w_last) s_state_d = SEND_B;
+          if (axi4.wlast) s_state_d = SEND_B;
         end
       end
       SEND_B: begin
-        axi4.b_valid = 1'b1;
-        axi4.b_id    = s_axi_req_q.id;
+        axi4.bvalid = 1'b1;
+        axi4.bid    = s_axi_req_q.id;
         if (axi4.b_ready) s_state_d = IDLE;
       end
 
@@ -269,13 +271,52 @@ module axi4_sram #(
   end
 
   // decode and mux
+  logic [         AXI_ADDR_WIDTH-1:0] s_axi_addr;
+  logic [$clog2(SRAM_BLOCK_SIZE)-1:0] s_sram_addr;
+  logic [        SRAM_BLOCK_SIZE-1:0] s_sram_en;
+  logic [        SRAM_BLOCK_SIZE-1:0] s_sram_wen;
+  logic [       SRAM_BIT_WIDTH/8-1:0] s_sram_bm   [0:SRAM_BLOCK_SIZE-1];
+  logic [$clog2(SRAM_WORD_DEPTH)-1:0] s_sram_addr [0:SRAM_BLOCK_SIZE-1];
+  logic [         SRAM_BIT_WIDTH-1:0] s_sram_dat_i[0:SRAM_BLOCK_SIZE-1];
+  logic [         SRAM_BIT_WIDTH-1:0] s_sram_dat_o[0:SRAM_BLOCK_SIZE-1];
 
+  assign s_axi_addr = (({AXI_ADDR_WIDTH{axi4.arvalid}} & axi4.araddr) | ({AXI_ADDR_WIDTH{axi4.awvalid}} & axi4.awaddr));
+  // verilog_format: off
+  assign s_sram_addr = s_axi_addr[$clog2(SRAM_WORD_DEPTH)+$clog2(SRAM_BLOCK_SIZE):$clog2(SRAM_WORD_DEPTH)];
+  // verilog_format: on
 
-  // 4KB fast regfile sram
-  tech_regfile_bm #(
-      .BIT_WIDTH (64),
-      .WORD_DEPTH(512)
-  ) u_tech_regile_bm (
-      .clk_i(axi4.aclk)
-  );
+  always_comb begin
+    s_sram_en  = '0;
+    s_sram_wen = '0;
+    for (int i = 0; i < SRAM_BLOCK_SIZE - 1; i++) begin
+      s_sram_bm[i]    = '0;
+      s_sram_addr[i]  = '0;
+      s_sram_dat_i[i] = '0;
+      s_sram_dat_o[i] = '0;
+    end
+
+    s_sram_en[s_sram_addr]    = s_ram_en;
+    s_sram_wen[s_sram_addr]   = s_ram_wen;
+    s_sram_bm[s_sram_addr]    = s_ram_bm;
+    s_sram_addr[s_sram_addr]  = s_ram_addr;
+    s_sram_dat_i[s_sram_addr] = s_ram_dat_o;
+    s_sram_dat_o[s_sram_addr] = s_ram_dat_i;
+  end
+
+  for (genvar i = 0; i < SRAM_BLOCK_SIZE - 1; i++) begin
+    // 4KB fast regfile sram
+    tech_regfile_bm #(
+        .BIT_WIDTH (SRAM_BIT_WIDTH),
+        .WORD_DEPTH(SRAM_WORD_DEPTH)
+    ) u_tech_regile_bm (
+        .clk_i      (axi4.aclk),
+        .en_i       (s_sram_en[i]),
+        .wen_i      (s_sram_wen[i]),
+        .bm_i       (s_sram_bm[i]),
+        .addr_i     (s_sram_addr[i]),
+        .s_ram_dat_i(s_sram_dat_i[i]),
+        .s_ram_dat_o(s_sram_dat_o[i])
+    );
+  end
+
 endmodule
