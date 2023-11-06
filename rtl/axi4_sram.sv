@@ -288,7 +288,7 @@ module axi4_sram #(
   always_comb begin
     s_sram_en  = '0;
     s_sram_wen = '0;
-    for (int i = 0; i < SRAM_BLOCK_SIZE - 1; i++) begin
+    for (integer i = 0; i < SRAM_BLOCK_SIZE - 1; i++) begin
       s_sram_bm[i]    = '0;
       s_sram_addr[i]  = '0;
       s_sram_dat_i[i] = '0;
