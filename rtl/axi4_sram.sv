@@ -20,18 +20,18 @@
 // MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
+// each sram block capacity is 4KB
 module axi4_sram #(
-    parameter int AXI_ADDR_WIDTH  = 32,
-    parameter int AXI_DATA_WIDTH  = 64,
-    parameter int AXI_ID_WIDTH    = 4,
-    parameter int AXI_USER_WIDTH  = 4,
-    parameter int SRAM_BIT_WIDTH  = 64,
-    parameter int SRAM_WORD_DEPTH = 512,
-    parameter int SRAM_BLOCK_SIZE = 4     // each sram block size is 4KB
+    parameter int          AXI_ADDR_WIDTH  = 32,
+    parameter int          AXI_DATA_WIDTH  = 64,
+    parameter int          AXI_ID_WIDTH    = 4,
+    parameter int          AXI_USER_WIDTH  = 4,
+    parameter int          SRAM_BIT_WIDTH  = 64,
+    parameter int          SRAM_WORD_DEPTH = 512,
+    parameter int          SRAM_BLOCK_SIZE = 4,
+    parameter int unsigned SRAM_BASE_ADDR  = 32'h0F00_0000
 ) (
-    // verilog_format: off
-    axi4_if.slave                        axi4
-    // verilog_format: on
+    axi4_if.slave axi4
 );
 
   logic                        s_ram_en;
@@ -91,19 +91,19 @@ module axi4_sram #(
     return warp_address;
   endfunction
 
-  logic [AXI_ADDR_WIDTH-1:0] aligned_address;
+  logic [AXI_ADDR_WIDTH-1:0] aligned_addr;
   logic [AXI_ADDR_WIDTH-1:0] wrap_boundary;
   logic [AXI_ADDR_WIDTH-1:0] upper_wrap_boundary;
   logic [AXI_ADDR_WIDTH-1:0] cons_addr;
 
   always_comb begin
     // address generation
-    aligned_address = {s_axi_req_q.addr[AXI_ADDR_WIDTH-1:LOG_NR_BYTES], {{LOG_NR_BYTES} {1'b0}}};
+    aligned_addr = {s_axi_req_q.addr[AXI_ADDR_WIDTH-1:LOG_NR_BYTES], {{LOG_NR_BYTES} {1'b0}}};
     wrap_boundary = get_wrap_boundary(s_axi_req_q.addr, s_axi_req_q.len);
     // this will overflow
     upper_wrap_boundary = wrap_boundary + ((s_axi_req_q.len + 1) << LOG_NR_BYTES);
     // calculate consecutive address
-    cons_addr = aligned_address + (s_cnt_q << LOG_NR_BYTES);
+    cons_addr = aligned_addr + (s_cnt_q << LOG_NR_BYTES);
 
     // transaction attributes
     s_state_d = s_state_q;
@@ -148,8 +148,8 @@ module axi4_sram #(
         end else if (axi4.awvalid) begin
           axi4.awready = 1'b1;
           axi4.wready  = 1'b1;
-          s_ram_addr   = axi4.awaddr;
           s_axi_req_d  = {axi4.awid, axi4.awaddr, axi4.awlen, axi4.awsize, axi4.awburst};
+          s_ram_addr   = axi4.awaddr;
           // we've got our first wvalid so start the write process
           if (axi4.wvalid) begin
             s_ram_en  = 1'b1;
@@ -224,7 +224,6 @@ module axi4_sram #(
           s_ram_wen = 1'b1;
           // handle the correct burst type
           case (s_axi_req_q.burst)
-
             FIXED, INCR: s_ram_addr = cons_addr;
             WRAP: begin
               // check if the address reached warp boundary
@@ -271,36 +270,40 @@ module axi4_sram #(
   end
 
   // decode and mux
-  logic [         AXI_ADDR_WIDTH-1:0] s_axi_addr;
-  logic [$clog2(SRAM_BLOCK_SIZE)-1:0] s_sram_addr;
-  logic [        SRAM_BLOCK_SIZE-1:0] s_sram_en;
-  logic [        SRAM_BLOCK_SIZE-1:0] s_sram_wen;
-  logic [       SRAM_BIT_WIDTH/8-1:0] s_sram_bm   [0:SRAM_BLOCK_SIZE-1];
-  logic [$clog2(SRAM_WORD_DEPTH)-1:0] s_sram_addr [0:SRAM_BLOCK_SIZE-1];
-  logic [         SRAM_BIT_WIDTH-1:0] s_sram_dat_i[0:SRAM_BLOCK_SIZE-1];
-  logic [         SRAM_BIT_WIDTH-1:0] s_sram_dat_o[0:SRAM_BLOCK_SIZE-1];
-
-  assign s_axi_addr = (({AXI_ADDR_WIDTH{axi4.arvalid}} & axi4.araddr) | ({AXI_ADDR_WIDTH{axi4.awvalid}} & axi4.awaddr));
-  // verilog_format: off
-  assign s_sram_addr = s_axi_addr[$clog2(SRAM_WORD_DEPTH)+$clog2(SRAM_BLOCK_SIZE):$clog2(SRAM_WORD_DEPTH)];
-  // verilog_format: on
+  logic [         AXI_ADDR_WIDTH-1:0]                              s_axi_addr;
+  logic [$clog2(SRAM_BLOCK_SIZE)-1:0]                              s_sram_idx;
+  logic [        SRAM_BLOCK_SIZE-1:0]                              s_sram_en;
+  logic [        SRAM_BLOCK_SIZE-1:0]                              s_sram_wen;
+  logic [        SRAM_BLOCK_SIZE-1:0][       SRAM_BIT_WIDTH/8-1:0] s_sram_bm;
+  logic [        SRAM_BLOCK_SIZE-1:0][$clog2(SRAM_WORD_DEPTH)-1:0] s_sram_addr;
+  logic [        SRAM_BLOCK_SIZE-1:0][         SRAM_BIT_WIDTH-1:0] s_sram_dat_i;
+  logic [        SRAM_BLOCK_SIZE-1:0][         SRAM_BIT_WIDTH-1:0] s_sram_dat_o;
 
   always_comb begin
-    s_sram_en  = '0;
-    s_sram_wen = '0;
-    for (integer i = 0; i < SRAM_BLOCK_SIZE - 1; i++) begin
-      s_sram_bm[i]    = '0;
-      s_sram_addr[i]  = '0;
-      s_sram_dat_i[i] = '0;
-      s_sram_dat_o[i] = '0;
+    s_axi_addr = '0;
+    if (axi4.arvalid && axi4.arready) begin
+      s_axi_addr = axi4.araddr - `SRAM_BASE_ADDR;
+    end else if (axi4.awvalid && axi4.awready) begin
+      s_axi_addr = axi4.awaddr - `SRAM_BASE_ADDR;
     end
+  end
 
-    s_sram_en[s_sram_addr]    = s_ram_en;
-    s_sram_wen[s_sram_addr]   = s_ram_wen;
-    s_sram_bm[s_sram_addr]    = s_ram_bm;
-    s_sram_addr[s_sram_addr]  = s_ram_addr;
-    s_sram_dat_i[s_sram_addr] = s_ram_dat_o;
-    s_sram_dat_o[s_sram_addr] = s_ram_dat_i;
+  // split the addr into 4KB
+  assign s_sram_idx = s_axi_addr[$clog2(
+      SRAM_WORD_DEPTH*SRAM_BIT_WIDTH
+  )+$clog2(
+      SRAM_BLOCK_SIZE
+  ):$clog2(
+      SRAM_WORD_DEPTH*SRAM_BIT_WIDTH
+  )];
+
+  always_comb begin
+    s_sram_en[s_sram_idx]    = s_ram_en;
+    s_sram_wen[s_sram_idx]   = s_ram_wen;
+    s_sram_bm[s_sram_idx]    = s_ram_bm;
+    s_sram_addr[s_sram_idx]  = s_ram_addr;
+    s_sram_dat_i[s_sram_idx] = s_ram_dat_o;
+    s_sram_dat_o[s_sram_idx] = s_ram_dat_i;
   end
 
   for (genvar i = 0; i < SRAM_BLOCK_SIZE - 1; i++) begin
@@ -310,8 +313,8 @@ module axi4_sram #(
         .WORD_DEPTH(SRAM_WORD_DEPTH)
     ) u_tech_regile_bm (
         .clk_i      (axi4.aclk),
-        .en_i       (s_sram_en[i]),
-        .wen_i      (s_sram_wen[i]),
+        .en_i       (~s_sram_en[i]),
+        .wen_i      (~s_sram_wen[i]),
         .bm_i       (s_sram_bm[i]),
         .addr_i     (s_sram_addr[i]),
         .s_ram_dat_i(s_sram_dat_i[i]),
