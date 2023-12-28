@@ -1,5 +1,5 @@
 // Copyright (c) 2023 Beijing Institute of Open Source Chip
-// pwm is licensed under Mulan PSL v2.
+// sram is licensed under Mulan PSL v2.
 // You can use this software according to the terms and conditions of the Mulan PSL v2.
 // You may obtain a copy of Mulan PSL v2 at:
 //             http://license.coscl.org.cn/MulanPSL2
@@ -8,10 +8,9 @@
 // MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
-`include "apb4_if.sv"
-`include "pwm_define.sv"
+`include "axi4_if.sv"
 
-module apb4_pwm_tb ();
+module axi4_sram_tb ();
   localparam CLK_PEROID = 10;
   logic rst_n_i, clk_i;
 
@@ -32,20 +31,13 @@ module apb4_pwm_tb ();
     sim_reset(40);
   end
 
-  apb4_if u_apb4_if (
+  axi4_if u_axi4_if (
       clk_i,
       rst_n_i
   );
 
-  pwm_if u_pwm_if ();
 
-  test_top u_test_top (
-      .apb4(u_apb4_if.master),
-      .pwm (u_pwm_if.tb)
-  );
-  apb4_pwm u_apb4_pwm (
-      .apb4(u_apb4_if.slave),
-      .pwm (u_pwm_if.dut)
-  );
+  test_top u_test_top (u_axi4_if.master);
+  axi4_sram u_axi4_sram (u_axi4_if.slave);
 
 endmodule
