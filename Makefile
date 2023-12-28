@@ -14,20 +14,18 @@ SIM_OPTIONS  := -full64 -debug_acc+all  +v2k -sverilog -timescale=1ns/10ps \
                 -kdb \
 
 SRC_FILE ?=
-SRC_FILE += ../rtl/apb4_pwm.sv
-SRC_FILE += ../tb/pwm_test.sv
+SRC_FILE += ../rtl/axi4_sram.sv
+SRC_FILE += ../tb/sram_test.sv
 SRC_FILE += ../tb/test_top.sv
-SRC_FILE += ../tb/apb4_pwm_tb.sv
+SRC_FILE += ../tb/axi4_sram_tb.sv
 
 SIM_INC ?=
 SIM_INC += +incdir+../rtl/
-SIM_INC += +incdir+../../common/rtl/
-SIM_INC += +incdir+../../common/rtl/clkrst
-SIM_INC += +incdir+../../common/rtl/cdc
+SIM_INC += +incdir+../../common/rtl/tech
 SIM_INC += +incdir+../../common/rtl/verif
 SIM_INC += +incdir+../../common/rtl/interface
 
-SIM_APP  ?= apb4_pwm
+SIM_APP  ?= axi4_sram
 SIM_TOP  := $(SIM_APP)_tb
 
 WAVE_CFG ?= # WAVE_ON
