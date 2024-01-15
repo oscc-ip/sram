@@ -25,62 +25,59 @@ module addr_ctrl (
     input  logic                        addr_ready_i
 );
 
-  logic s_addr_hdshk;
+  logic [`AXI4_ADDR_OFT_WIDTH-1:0] s_oft_addr;
   logic [2:0] s_asize_d, s_asize_q;
   logic [1:0] s_aburst_d, s_aburst_q;
   logic [7:0] s_alen_d, s_alen_q;
-  logic [`AXI4_ADDR_WIDTH-1:0] s_addrout_d, s_addrout_q;
-  logic s_addrout_en;
   logic [7:0] s_cnt_d, s_cnt_q;
   logic s_cnt_en;
-  logic [`AXI4_ADDR_OFT_WIDTH-1:0] s_oft_addr;
+  logic [`AXI4_ADDR_WIDTH-1:0] s_addrout_d, s_addrout_q;
+  logic s_addrout_en;
   logic s_addrlast_d, s_addrlast_q;
-  logic s_addrvalid_d, s_addrvalid_q;
-  logic s_addrvalid_en;
-
+  logic s_addrvalid_d, s_addrvalid_q, s_addrvalid_en;
+  logic s_axi_hdshk, s_addr_hdshk;
 
   assign aready_o     = ~s_addrvalid_q;
   assign addr_o       = s_addrout_q;
   assign addr_last_o  = s_addrlast_q;
   assign addr_valid_o = s_addrvalid_q;
-  assign s_addr_hdshk = avalid_i & aready_o;
+  assign s_axi_hdshk  = avalid_i & aready_o;
+  assign s_addr_hdshk = addr_valid_o && addr_ready_i;
 
-  assign s_asize_d    = s_addr_hdshk ? asize_i : s_asize_q;
+  assign s_asize_d    = s_axi_hdshk ? asize_i : s_asize_q;
   dffer #(3) u_asize_dffer (
       aclk_i,
       aresetn_i,
-      s_addr_hdshk,
+      s_axi_hdshk,
       s_asize_d,
       s_asize_q
   );
 
-  assign s_aburst_d = s_addr_hdshk ? aburst_i : s_aburst_q;
+  assign s_aburst_d = s_axi_hdshk ? aburst_i : s_aburst_q;
   dffer #(2) u_aburst_dffer (
       aclk_i,
       aresetn_i,
-      s_addr_hdshk,
+      s_axi_hdshk,
       s_aburst_d,
       s_aburst_q
   );
 
-
-  assign s_alen_d = s_addr_hdshk ? alen_i : s_alen_q;
+  assign s_alen_d = s_axi_hdshk ? alen_i : s_alen_q;
   dffer #(4) u_alen_dffer (
       aclk_i,
       aresetn_i,
-      s_addr_hdshk,
+      s_axi_hdshk,
       s_alen_d,
       s_alen_q
   );
 
-
-  assign s_addrout_en = s_addr_hdshk || addr_ready_i;
+  assign s_addrout_en = s_axi_hdshk || s_addr_hdshk;
   always_comb begin
     s_addrout_d = s_addrout_q;
-    if (s_addr_hdshk) begin
+    if (s_axi_hdshk) begin
       s_addrout_d = addr_i;
-    end else if (addr_ready_i) begin
-      s_addrout_d = {s_addrout_q[`AXI4_ADDR_WIDTH-1:12], s_oft_addr};
+    end else if (s_addr_hdshk) begin
+      s_addrout_d = {s_addrout_q[`AXI4_ADDR_WIDTH-1:`AXI4_ADDR_OFT_WIDTH], s_oft_addr};
     end
   end
   dffer #(`AXI4_ADDR_WIDTH) u_addrout_dffer (
@@ -92,12 +89,12 @@ module addr_ctrl (
   );
 
 
-  assign s_cnt_en = s_addr_hdshk || (s_addrvalid_q && addr_ready_i);
+  assign s_cnt_en = s_axi_hdshk || s_addr_hdshk;
   always_comb begin
     s_cnt_d = s_cnt_q;
-    if (s_addr_hdshk) begin
+    if (s_axi_hdshk) begin
       s_cnt_d = alen_i;
-    end else if (s_addrvalid_q && addr_ready_i) begin
+    end else if (s_addr_hdshk) begin
       s_cnt_d = s_cnt_q - 1'b1;
     end
   end
@@ -118,12 +115,12 @@ module addr_ctrl (
   );
 
 
-  assign s_addrvalid_en = s_addr_hdshk || (addr_ready_i && s_addrlast_q);
+  assign s_addrvalid_en = s_axi_hdshk || (addr_ready_i && addr_last_o);
   always_comb begin
     s_addrvalid_d = s_addrvalid_q;
-    if (s_addr_hdshk) begin
+    if (s_axi_hdshk) begin
       s_addrvalid_d = 1'b1;
-    end else if (addr_ready_i && s_addrlast_q) begin
+    end else if (addr_ready_i && addr_last_o) begin
       s_addrvalid_d = 1'b0;
     end
   end
@@ -139,7 +136,7 @@ module addr_ctrl (
       .alen_i  (s_alen_q),
       .asize_i (s_asize_q),
       .aburst_i(s_aburst_q),
-      .addr_i  (s_addrout_q[11:0]),
+      .addr_i  (s_addrout_q[`AXI4_ADDR_OFT_WIDTH-1:0]),
       .addr_o  (s_oft_addr)
   );
 endmodule
