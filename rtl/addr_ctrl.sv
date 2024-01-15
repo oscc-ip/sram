@@ -106,7 +106,7 @@ module addr_ctrl (
       s_cnt_q
   );
 
-  assign s_addrlast_d = s_cnt_q == '0;
+  assign s_addrlast_d = s_cnt_d == '0;
   dffr #(1) u_addrlast_dffr (
       aclk_i,
       aresetn_i,
