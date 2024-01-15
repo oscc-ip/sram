@@ -14,6 +14,9 @@ SIM_OPTIONS  := -full64 -debug_acc+all  +v2k -sverilog -timescale=1ns/10ps \
                 -kdb \
 
 SRC_FILE ?=
+SRC_FILE += ../rtl/addr_gen.sv
+SRC_FILE += ../rtl/addr_ctrl.sv
+SRC_FILE += ../rtl/mem_ctrl.sv
 SRC_FILE += ../rtl/axi4_sram.sv
 SRC_FILE += ../tb/sram_test.sv
 SRC_FILE += ../tb/test_top.sv
@@ -21,6 +24,7 @@ SRC_FILE += ../tb/axi4_sram_tb.sv
 
 SIM_INC ?=
 SIM_INC += +incdir+../rtl/
+SIM_INC += +incdir+../../common/rtl/
 SIM_INC += +incdir+../../common/rtl/tech
 SIM_INC += +incdir+../../common/rtl/verif
 SIM_INC += +incdir+../../common/rtl/interface
