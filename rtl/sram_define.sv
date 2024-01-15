@@ -29,16 +29,26 @@ interface sram_if #(
       input wen_i,
       input bm_i,
       input addr_i,
-      input addr_i,
-      output addr_o
+      input dat_i,
+      output dat_o
   );
-  modport tb(
-      output clk_i,
+  modport slave(
+      input clk_i,
       output en_i,
       output wen_i,
       output bm_i,
       output addr_i,
+      output dat_i,
+      input dat_o
+  );
+
+  modport tb(
+      input clk_i,
+      output en_i,
+      output wen_i,
+      output bm_i,
       output addr_i,
+      output dat_i,
       input addr_o
   );
 endinterface
