@@ -15,7 +15,6 @@ interface sram_if #(
     parameter int BIT_WIDTH  = 64,
     parameter int WORD_DEPTH = 512
 ) ();
-  logic                          clk_i;
   logic                          en_i;
   logic                          wen_i;
   logic [       BIT_WIDTH/8-1:0] bm_i;
@@ -23,34 +22,9 @@ interface sram_if #(
   logic [         BIT_WIDTH-1:0] dat_i;
   logic [         BIT_WIDTH-1:0] dat_o;
 
-  modport dut(
-      input clk_i,
-      input en_i,
-      input wen_i,
-      input bm_i,
-      input addr_i,
-      input dat_i,
-      output dat_o
-  );
-  modport slave(
-      output clk_i,
-      output en_i,
-      output wen_i,
-      output bm_i,
-      output addr_i,
-      output dat_i,
-      input dat_o
-  );
-
-  modport tb(
-      output clk_i,
-      output en_i,
-      output wen_i,
-      output bm_i,
-      output addr_i,
-      output dat_i,
-      input dat_o
-  );
+  modport dut(input en_i, input wen_i, input bm_i, input addr_i, input dat_i, output dat_o);
+  modport slave(output en_i, output wen_i, output bm_i, output addr_i, output dat_i, input dat_o);
+  modport tb(output en_i, output wen_i, output bm_i, output addr_i, output dat_i, input dat_o);
 endinterface
 
 `endif

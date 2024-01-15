@@ -25,48 +25,51 @@
 
 // each sram block capacity is 4KB
 module axi4_sram #(
-    parameter int          SRAM_WORD_DEPTH = 512,
-    parameter int          SRAM_BLOCK_SIZE = 4,
-    parameter int unsigned SRAM_BASE_ADDR  = 32'h0F00_0000
+    parameter int SRAM_WORD_DEPTH = 512,
+    parameter int SRAM_BLOCK_SIZE = 4
 ) (
     axi4_if.slave axi4
 );
   // simplify the sram control signal logic
-  localparam int SRAM_BIT_WIDTH = `AXI4_DATA_WIDTH;
+  // verilog_format: off
+  localparam int SRAM_BIT_WIDTH      = `AXI4_DATA_WIDTH;
+  localparam int SRAM_BIT_NUM        = SRAM_WORD_DEPTH * SRAM_BIT_WIDTH;
+  localparam int SRAM_BIT_NUM_LOG    = $clog2(SRAM_BIT_NUM);
+  localparam int SRAM_BLOCK_SIZE_LOG = $clog2(SRAM_BLOCK_SIZE);
+  // verilog_format: on
 
-  sram_if sram();
+  sram_if sram ();
   mem_ctrl u_mem_ctrl (
       axi4,
       sram
   );
 
   // decode and mux
-  logic [       `AXI4_ADDR_WIDTH-1:0]                              s_axi_addr;
-  logic [$clog2(SRAM_BLOCK_SIZE)-1:0]                              s_tech_sram_idx;
-  logic [        SRAM_BLOCK_SIZE-1:0]                              s_tech_sram_en;
-  logic [        SRAM_BLOCK_SIZE-1:0]                              s_tech_sram_wen;
-  logic [        SRAM_BLOCK_SIZE-1:0][       SRAM_BIT_WIDTH/8-1:0] s_tech_sram_bm;
-  logic [        SRAM_BLOCK_SIZE-1:0][$clog2(SRAM_WORD_DEPTH)-1:0] s_tech_sram_addr;
-  logic [        SRAM_BLOCK_SIZE-1:0][         SRAM_BIT_WIDTH-1:0] s_tech_sram_dat_i;
-  logic [        SRAM_BLOCK_SIZE-1:0][         SRAM_BIT_WIDTH-1:0] s_tech_sram_dat_o;
+  logic [SRAM_BLOCK_SIZE_LOG-1:0] s_sram_idx_d, s_sram_idx_q;
+  logic [SRAM_BLOCK_SIZE_LOG-1:0]                              s_tech_sram_idx;
+  logic [    SRAM_BLOCK_SIZE-1:0]                              s_tech_sram_en;
+  logic [    SRAM_BLOCK_SIZE-1:0]                              s_tech_sram_wen;
+  logic [    SRAM_BLOCK_SIZE-1:0][       SRAM_BIT_WIDTH/8-1:0] s_tech_sram_bm;
+  logic [    SRAM_BLOCK_SIZE-1:0][$clog2(SRAM_WORD_DEPTH)-1:0] s_tech_sram_addr;
+  logic [    SRAM_BLOCK_SIZE-1:0][         SRAM_BIT_WIDTH-1:0] s_tech_sram_dat_i;
+  logic [    SRAM_BLOCK_SIZE-1:0][         SRAM_BIT_WIDTH-1:0] s_tech_sram_dat_o;
 
+  assign s_tech_sram_idx = s_sram_idx_q;
   always_comb begin
-    s_axi_addr = '0;
+    s_sram_idx_d = '0;
     if (axi4.arvalid && axi4.arready) begin
-      s_axi_addr = axi4.araddr - SRAM_BASE_ADDR;
+      s_sram_idx_d = axi4.araddr[SRAM_BIT_NUM_LOG+SRAM_BLOCK_SIZE_LOG:SRAM_BIT_NUM_LOG];
     end else if (axi4.awvalid && axi4.awready) begin
-      s_axi_addr = axi4.awaddr - SRAM_BASE_ADDR;
+      s_sram_idx_d = axi4.awaddr[SRAM_BIT_NUM_LOG+SRAM_BLOCK_SIZE_LOG:SRAM_BIT_NUM_LOG];
     end
   end
+  dffr #(SRAM_BLOCK_SIZE_LOG) u_sram_idx_dffr (
+      axi4.aclk,
+      axi4.aresetn,
+      s_sram_idx_d,
+      s_sram_idx_q
+  );
 
-  // split the addr into 4KB
-  assign s_tech_sram_idx = s_axi_addr[$clog2(
-      SRAM_WORD_DEPTH*SRAM_BIT_WIDTH
-  )+$clog2(
-      SRAM_BLOCK_SIZE
-  ):$clog2(
-      SRAM_WORD_DEPTH*SRAM_BIT_WIDTH
-  )];
 
   always_comb begin
     s_tech_sram_en[s_tech_sram_idx]    = sram.en_i;
@@ -83,7 +86,7 @@ module axi4_sram #(
         .BIT_WIDTH (SRAM_BIT_WIDTH),
         .WORD_DEPTH(SRAM_WORD_DEPTH)
     ) u_tech_regile_bm (
-        .clk_i (sram.clk_i),
+        .clk_i (axi4.aclk),
         .en_i  (s_tech_sram_en[i]),
         .wen_i (s_tech_sram_wen[i]),
         .bm_i  (s_tech_sram_bm[i]),

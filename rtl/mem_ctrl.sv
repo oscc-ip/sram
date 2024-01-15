@@ -27,42 +27,40 @@ module mem_ctrl (
   logic [`AXI4_ID_WIDTH-1:0] s_r_id_d, s_r_id_q;
   logic s_r_last_d, s_r_last_q;
   logic s_r_valid_d, s_r_valid_q;
-  logic s_w_last, s_aw_valid, s_aw_ready;
-  logic s_r_last, s_ar_valid, s_ar_ready;
-  logic [`AXI4_ADDR_WIDTH-1:0] s_aw_addr, s_ar_addr;
+  logic s_waddr_last, s_awaddr_valid, s_awaddr_ready;
+  logic s_raddr_last, s_araddr_valid, s_araddr_ready;
+  logic [`AXI4_ADDR_WIDTH-1:0] s_awaddr_addr, s_araddr_addr;
 
-  assign s_aw_hdshk  = axi4.awvalid & axi4.awready;
-  assign s_w_hdshk   = axi4.wvalid & axi4.wready;
-  assign s_b_hdshk   = axi4.bvalid & axi4.bready;
-  assign s_ar_hdshk  = axi4.arvalid & axi4.arready;
-  assign s_r_hdshk   = axi4.rvalid & axi4.rready;
+  assign s_aw_hdshk     = axi4.awvalid & axi4.awready;
+  assign s_w_hdshk      = axi4.wvalid & axi4.wready;
+  assign s_b_hdshk      = axi4.bvalid & axi4.bready;
+  assign s_ar_hdshk     = axi4.arvalid & axi4.arready;
+  assign s_r_hdshk      = axi4.rvalid & axi4.rready;
 
-  assign s_aw_ready  = (s_w_hdshk & ~s_w_last) | s_b_hdshk;
-  assign s_ar_ready  = ~sram.en_i & ~s_wr_sel_q;
+  assign s_awaddr_ready = (s_w_hdshk & ~s_waddr_last) | s_b_hdshk;
+  assign s_araddr_ready = ~sram.en_i & ~s_wr_sel_q;
 
-  assign axi4.wready = s_w_ready_q;
-  assign axi4.bid    = s_b_id_q;
-  assign axi4.bresp  = `AXI4_RESP_OKAY;
-  assign axi4.buser  = '0;
-  assign axi4.bvalid = s_b_valid_q;
+  assign axi4.wready    = s_w_ready_q;
+  assign axi4.bid       = s_b_id_q;
+  assign axi4.bresp     = `AXI4_RESP_OKAY;
+  assign axi4.buser     = '0;
+  assign axi4.bvalid    = s_b_valid_q;
 
-  assign axi4.rid    = s_r_id_q;
-  assign axi4.rdata  = sram.dat_o;
-  assign axi4.rresp  = `AXI4_RESP_OKAY;
-  assign axi4.rlast  = s_r_last_q;
-  assign axi4.ruser  = '0;
-  assign axi4.rvalid = s_r_valid_q;
-
-
+  assign axi4.rid       = s_r_id_q;
+  assign axi4.rdata     = sram.dat_o;
+  assign axi4.rresp     = `AXI4_RESP_OKAY;
+  assign axi4.rlast     = s_r_last_q;
+  assign axi4.ruser     = '0;
+  assign axi4.rvalid    = s_r_valid_q;
   // sram slave if
-  assign sram.clk_i  = axi4.aclk;
-  assign sram.wen_i  = ~s_wr_sel_q;
-  assign sram.bm_i   = ~(axi4.wstrb &{`AXI4_WSTRB_WIDTH{s_wr_sel_q}});
-  assign sram.addr_i = s_wr_sel_q ? s_aw_addr : s_ar_addr;
-  assign sram.dat_i  = axi4.wdata;
+  assign sram.wen_i     = ~s_wr_sel_q;
+  assign sram.bm_i      = ~(axi4.wstrb &{`AXI4_WSTRB_WIDTH{s_wr_sel_q}});
+  assign sram.addr_i    = s_wr_sel_q ? s_awaddr_addr : s_araddr_addr;
+  assign sram.dat_i     = axi4.wdata;
+
   always_comb begin
     sram.en_i = 1'b1;
-    if(~s_wr_sel_q & s_ar_valid & ~(axi4.rvalid & axi4.rlast) & ~(axi4.rvalid & ~axi4.rready)) begin
+    if(~s_wr_sel_q & s_araddr_valid & ~(axi4.rvalid & axi4.rlast) & ~(axi4.rvalid & ~axi4.rready)) begin
       sram.en_i = 1'b0;
     end else if (s_w_hdshk) begin
       sram.en_i = 1'b0;
@@ -71,7 +69,7 @@ module mem_ctrl (
 
   always_comb begin
     s_arb_en = 1'b0;
-    if (s_wr_sel_q & (~s_aw_valid | (s_w_last & s_aw_ready))) begin
+    if (s_wr_sel_q & (~s_awaddr_valid | (s_waddr_last & s_awaddr_ready))) begin
       s_arb_en = 1'b1;
     end else if (~s_wr_sel_q & ~s_r_valid_en_q) begin
       s_arb_en = 1'b1;
@@ -80,7 +78,7 @@ module mem_ctrl (
   always_comb begin
     s_wr_sel_d = 1'b0;
     unique case ({
-      s_aw_valid & axi4.wvalid, s_ar_valid
+      s_awaddr_valid & axi4.wvalid, s_araddr_valid
     })
       2'b00: s_wr_sel_d = s_wr_sel_q;
       2'b01: s_wr_sel_d = 1'b0;
@@ -96,7 +94,7 @@ module mem_ctrl (
       s_wr_sel_q
   );
 
-  assign s_w_ready_d = (s_wr_sel_q | (s_wr_sel_d & s_arb_en)) & s_aw_valid & ~(s_w_hdshk & axi4.wlast) & ~axi4.bvalid;
+  assign s_w_ready_d = (s_wr_sel_q | (s_wr_sel_d & s_arb_en)) & s_awaddr_valid & ~(s_w_hdshk & axi4.wlast) & ~axi4.bvalid;
   dffr #(1) u_w_ready_dffr (
       axi4.aclk,
       axi4.aresetn,
@@ -128,7 +126,7 @@ module mem_ctrl (
       s_ar_id_q
   );
 
-  assign s_r_id_d = s_ar_valid ? s_ar_id_q : s_r_id_q;
+  assign s_r_id_d = s_araddr_valid ? s_ar_id_q : s_r_id_q;
   dffr #(`AXI4_ID_WIDTH) u_r_id_dffr (
       axi4.aclk,
       axi4.aresetn,
@@ -136,7 +134,7 @@ module mem_ctrl (
       s_r_id_q
   );
 
-  assign s_r_last_d = ~sram.en_i & s_ar_valid ? s_r_last : s_r_last_q;
+  assign s_r_last_d = ~sram.en_i & s_araddr_valid ? s_raddr_last : s_r_last_q;
   dffr #(1) u_r_last_dffr (
       axi4.aclk,
       axi4.aresetn,
@@ -145,7 +143,7 @@ module mem_ctrl (
   );
 
 
-  assign s_r_valid_en_d = (~sram.en_i & s_ar_valid & ~s_wr_sel_q) ? 1'b1: (s_r_hdshk ? 1'b0: s_r_valid_en_q);
+  assign s_r_valid_en_d = (~sram.en_i & s_araddr_valid & ~s_wr_sel_q) ? 1'b1: (s_r_hdshk ? 1'b0: s_r_valid_en_q);
   dffr #(1) u_r_valid_en_dffr (
       axi4.aclk,
       axi4.aresetn,
@@ -171,10 +169,10 @@ module mem_ctrl (
       .alen_i      (axi4.awlen),
       .avalid_i    (axi4.awvalid),
       .aready_o    (axi4.awready),
-      .addr_o      (s_aw_addr),
-      .addr_last_o (s_w_last),
-      .addr_valid_o(s_aw_valid),
-      .addr_ready_i(s_aw_ready)
+      .addr_o      (s_awaddr_addr),
+      .addr_last_o (s_waddr_last),
+      .addr_valid_o(s_awaddr_valid),
+      .addr_ready_i(s_awaddr_ready)
   );
 
 
@@ -187,9 +185,9 @@ module mem_ctrl (
       .alen_i      (axi4.arlen),
       .avalid_i    (axi4.arvalid),
       .aready_o    (axi4.arready),
-      .addr_o      (s_ar_addr),
-      .addr_last_o (s_r_last),
-      .addr_valid_o(s_ar_valid),
-      .addr_ready_i(s_ar_ready)
+      .addr_o      (s_araddr_addr),
+      .addr_last_o (s_raddr_last),
+      .addr_valid_o(s_araddr_valid),
+      .addr_ready_i(s_araddr_ready)
   );
 endmodule
