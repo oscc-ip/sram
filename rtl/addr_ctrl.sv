@@ -8,7 +8,8 @@
 // MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
-`include "axi_define.sv"
+`include "register.sv"
+`include "axi4_define.sv"
 
 module addr_ctrl (
     input  logic                        aclk_i,
@@ -63,7 +64,7 @@ module addr_ctrl (
   );
 
   assign s_alen_d = s_axi_hdshk ? alen_i : s_alen_q;
-  dffer #(4) u_alen_dffer (
+  dffer #(8) u_alen_dffer (
       aclk_i,
       aresetn_i,
       s_axi_hdshk,

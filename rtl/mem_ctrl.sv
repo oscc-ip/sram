@@ -8,8 +8,9 @@
 // MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
+`include "register.sv"
 `include "sram_define.sv"
-`include "axi_define.sv"
+`include "axi4_define.sv"
 
 module mem_ctrl (
     axi4_if.slave axi4,
@@ -26,8 +27,9 @@ module mem_ctrl (
   logic [`AXI4_ID_WIDTH-1:0] s_r_id_d, s_r_id_q;
   logic s_r_last_d, s_r_last_q;
   logic s_r_valid_d, s_r_valid_q;
-  logic s_aw_addr, s_w_last, s_aw_valid, s_aw_ready;
-  logic s_ar_addr, s_r_last, s_ar_valid, s_ar_ready;
+  logic s_w_last, s_aw_valid, s_aw_ready;
+  logic s_r_last, s_ar_valid, s_ar_ready;
+  logic [`AXI4_ADDR_WIDTH-1:0] s_aw_addr, s_ar_addr;
 
   assign s_aw_hdshk  = axi4.awvalid & axi4.awready;
   assign s_w_hdshk   = axi4.wvalid & axi4.wready;

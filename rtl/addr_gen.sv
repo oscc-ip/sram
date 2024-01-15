@@ -8,10 +8,10 @@
 // MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
-`include "axi_define.sv"
+`include "axi4_define.sv"
 
 module addr_gen (
-    input  logic [                     3:0] alen_i,
+    input  logic [                     7:0] alen_i,
     input  logic [                     2:0] asize_i,
     input  logic [                     1:0] aburst_i,
     input  logic [`AXI4_ADDR_OFT_WIDTH-1:0] addr_i,
@@ -34,8 +34,8 @@ module addr_gen (
   end
 
   assign s_inc_addr = s_offset_addr + 1'b1;
-  assign s_wrap_addr[`AXI4_ADDR_OFT_WIDTH-1:4] = s_offset_addr[`AXI4_ADDR_OFT_WIDTH-1:4];
-  assign s_wrap_addr[3:0] = (alen_i & s_inc_addr[3:0]) | (~alen_i & s_offset_addr[3:0]);
+  assign s_wrap_addr[`AXI4_ADDR_OFT_WIDTH-1:8] = s_offset_addr[`AXI4_ADDR_OFT_WIDTH-1:8];
+  assign s_wrap_addr[7:0] = (alen_i & s_inc_addr[7:0]) | (~alen_i & s_offset_addr[7:0]);
   assign s_mux_addr = aburst_i == `AXI4_BURST_TYPE_WRAP ? s_wrap_addr : s_inc_addr;
 
   always_comb begin

@@ -34,7 +34,7 @@ module axi4_sram #(
   // simplify the sram control signal logic
   localparam int SRAM_BIT_WIDTH = `AXI4_DATA_WIDTH;
 
-  sram_if sram;
+  sram_if sram();
   mem_ctrl u_mem_ctrl (
       axi4,
       sram

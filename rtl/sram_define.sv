@@ -33,7 +33,7 @@ interface sram_if #(
       output dat_o
   );
   modport slave(
-      input clk_i,
+      output clk_i,
       output en_i,
       output wen_i,
       output bm_i,
@@ -43,13 +43,13 @@ interface sram_if #(
   );
 
   modport tb(
-      input clk_i,
+      output clk_i,
       output en_i,
       output wen_i,
       output bm_i,
       output addr_i,
       output dat_i,
-      input addr_o
+      input dat_o
   );
 endinterface
 
