@@ -34,7 +34,7 @@ program automatic test_top (
     Helper::print("tb init done");
     sram_hdl = new("sram_test", axi4);
     sram_hdl.init();
-    sram_hdl.demo_write();
+    sram_hdl.align_wr_rd_test();
     // sram_hdl.test_reset_reg();
     // sram_hdl.test_wr_rd_reg();
     // sram_hdl.test_clk_div();

@@ -20,7 +20,7 @@ class SRAMTest extends AXI4Master;
   virtual axi4_if.master axi4;
 
   extern function new(string name = "sram_test", virtual axi4_if.master axi4);
-  extern task automatic demo_write();
+  extern task automatic align_wr_rd_test();
 endclass
 
 function SRAMTest::new(string name, virtual axi4_if.master axi4);
@@ -30,11 +30,18 @@ function SRAMTest::new(string name, virtual axi4_if.master axi4);
   this.axi4   = axi4;
 endfunction
 
-task automatic SRAMTest::demo_write();
+task automatic SRAMTest::align_wr_rd_test();
   bit [`AXI4_DATA_WIDTH-1:0] val[$] = {64'h1234_5678};
 
-  this.write('0, 32'h0F00_0000, 0, `AXI4_BURST_SIZE_8BYTES, `AXI4_BURST_TYPE_FIXED, val,
-             8'b1111_1111);
+  this.write(.id('1), .addr(32'h0F00_0000), .len(0), .size(`AXI4_BURST_SIZE_8BYTES),
+             .burst(`AXI4_BURST_TYPE_FIXED), .data(val), .strb(8'b1111_1111));
+
+  this.read(.id('1), .addr(32'h0F00_0000), .len(0), .size(`AXI4_BURST_SIZE_8BYTES),
+            .burst(`AXI4_BURST_TYPE_FIXED));
+
+  foreach (super.rd_data[i]) begin
+    $display("%t rd_data[%d]: %h", $time, i, super.rd_data[i]);
+  end
 endtask
 
 `endif
