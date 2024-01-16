@@ -72,12 +72,12 @@ module addr_ctrl (
       s_alen_q
   );
 
-  assign s_addrout_en = s_axi_hdshk || s_addr_hdshk;
+  assign s_addrout_en = s_axi_hdshk || addr_ready_i;
   always_comb begin
     s_addrout_d = s_addrout_q;
     if (s_axi_hdshk) begin
       s_addrout_d = addr_i;
-    end else if (s_addr_hdshk) begin
+    end else if (addr_ready_i) begin
       s_addrout_d = {s_addrout_q[`AXI4_ADDR_WIDTH-1:`AXI4_ADDR_OFT_WIDTH], s_oft_addr};
     end
   end
@@ -99,7 +99,7 @@ module addr_ctrl (
       s_cnt_d = s_cnt_q - 1'b1;
     end
   end
-  dffer #(8) u_cnt_dffer (
+  dfferh #(8) u_cnt_dfferh (
       aclk_i,
       aresetn_i,
       s_cnt_en,
@@ -114,7 +114,6 @@ module addr_ctrl (
       s_addrlast_d,
       s_addrlast_q
   );
-
 
   assign s_addrvalid_en = s_axi_hdshk || (addr_ready_i && addr_last_o);
   always_comb begin

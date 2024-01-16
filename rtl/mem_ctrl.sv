@@ -67,14 +67,7 @@ module mem_ctrl (
     end
   end
 
-  always_comb begin
-    s_arb_en = 1'b0;
-    if (s_wr_sel_q & (~s_awaddr_valid | (s_waddr_last & s_awaddr_ready))) begin
-      s_arb_en = 1'b1;
-    end else if (~s_wr_sel_q & ~s_r_valid_en_q) begin
-      s_arb_en = 1'b1;
-    end
-  end
+  assign s_arb_en = (s_wr_sel_q & (~s_awaddr_valid | (s_waddr_last & s_awaddr_ready))) | (~s_wr_sel_q & ~s_r_valid_en_d);
   always_comb begin
     s_wr_sel_d = 1'b0;
     unique case ({
@@ -143,7 +136,7 @@ module mem_ctrl (
   );
 
 
-  assign s_r_valid_en_d = (~sram.en_i & s_araddr_valid & ~s_wr_sel_q) ? 1'b1: (s_r_hdshk ? 1'b0: s_r_valid_en_q);
+  assign s_r_valid_en_d = (s_araddr_valid & s_araddr_ready) ? 1'b1: (s_r_hdshk ? 1'b0: s_r_valid_en_q);
   dffr #(1) u_r_valid_en_dffr (
       axi4.aclk,
       axi4.aresetn,
@@ -151,7 +144,7 @@ module mem_ctrl (
       s_r_valid_en_q
   );
 
-  assign s_r_valid_d = s_r_valid_en_q | (axi4.rvalid & ~axi4.rready);
+  assign s_r_valid_d = s_r_valid_en_d | (axi4.rvalid & ~axi4.rready);
   dffr #(1) u_r_valid_dffr (
       axi4.aclk,
       axi4.aresetn,
