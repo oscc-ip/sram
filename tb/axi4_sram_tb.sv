@@ -38,6 +38,11 @@ module axi4_sram_tb ();
 
 
   test_top u_test_top (u_axi4_if.master);
-  axi4_sram u_axi4_sram (u_axi4_if.slave);
+  axi4_sram #(
+      .SRAM_WORD_DEPTH(512),
+      .SRAM_BLOCK_SIZE(4)
+  ) u_axi4_sram (
+      u_axi4_if.slave
+  );
 
 endmodule

@@ -12,7 +12,7 @@
 `define INC_SRAM_TEST_SV
 
 `include "axi4_master.sv"
-// `include "pwm_define.sv"
+`include "axi4_define.sv"
 
 class SRAMTest extends AXI4Master;
   string                 name;
@@ -20,6 +20,7 @@ class SRAMTest extends AXI4Master;
   virtual axi4_if.master axi4;
 
   extern function new(string name = "sram_test", virtual axi4_if.master axi4);
+  extern task automatic demo_write();
 endclass
 
 function SRAMTest::new(string name, virtual axi4_if.master axi4);
@@ -28,5 +29,12 @@ function SRAMTest::new(string name, virtual axi4_if.master axi4);
   this.wr_val = 0;
   this.axi4   = axi4;
 endfunction
+
+task automatic SRAMTest::demo_write();
+  bit [`AXI4_DATA_WIDTH-1:0] val[$] = {64'h1234_5678};
+
+  this.write('0, 32'h0F00_0000, 0, `AXI4_BURST_SIZE_8BYTES, `AXI4_BURST_TYPE_FIXED, val,
+             8'b1111_1111);
+endtask
 
 `endif
