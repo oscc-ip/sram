@@ -13,14 +13,24 @@ SIM_OPTIONS  := -full64 -debug_acc+all  +v2k -sverilog -timescale=1ns/10ps \
                 +define+S50 \
                 -kdb \
 
+SIM_APP  ?= axi4_sram_fsm
+
 SRC_FILE ?=
+ifeq ($(SIM_APP), axi4_sram_bpl)
 SRC_FILE += ../rtl/addr_gen.sv
 SRC_FILE += ../rtl/addr_ctrl.sv
 SRC_FILE += ../rtl/mem_ctrl.sv
-SRC_FILE += ../rtl/axi4_sram.sv
+SRC_FILE += ../rtl/axi4_sram_bpl.sv
 SRC_FILE += ../tb/sram_test.sv
 SRC_FILE += ../tb/test_top.sv
-SRC_FILE += ../tb/axi4_sram_tb.sv
+SRC_FILE += ../tb/axi4_sram_bpl_tb.sv
+endif
+ifeq ($(SIM_APP), axi4_sram_fsm)
+SRC_FILE += ../rtl/axi4_sram_fsm.sv
+SRC_FILE += ../tb/sram_test.sv
+SRC_FILE += ../tb/test_top.sv
+SRC_FILE += ../tb/axi4_sram_fsm_tb.sv
+endif
 
 SIM_INC ?=
 SIM_INC += +incdir+../rtl/
@@ -29,7 +39,7 @@ SIM_INC += +incdir+../../common/rtl/tech
 SIM_INC += +incdir+../../common/rtl/verif
 SIM_INC += +incdir+../../common/rtl/interface
 
-SIM_APP  ?= axi4_sram
+
 SIM_TOP  := $(SIM_APP)_tb
 
 WAVE_CFG ?= # WAVE_ON

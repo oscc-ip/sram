@@ -10,7 +10,7 @@
 
 `include "axi4_if.sv"
 
-module axi4_sram_tb ();
+module axi4_sram_bpl_tb ();
   localparam CLK_PEROID = 10;
   logic rst_n_i, clk_i;
 
@@ -38,10 +38,10 @@ module axi4_sram_tb ();
 
 
   test_top u_test_top (u_axi4_if.master);
-  axi4_sram #(
+  axi4_sram_bpl #(
       .SRAM_WORD_DEPTH(512),
       .SRAM_BLOCK_SIZE(4)
-  ) u_axi4_sram (
+  ) u_axi4_sram_bpl (
       u_axi4_if.slave
   );
 
