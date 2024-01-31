@@ -21,13 +21,13 @@
 // See the Mulan PSL v2 for more details.
 
 `include "regfile.sv"
+`include "register.sv"
 `include "axi4_define.sv"
 
 // each sram block capacity is 4KB
-module axi4_sram #(
-    parameter int          SRAM_WORD_DEPTH = 512,
-    parameter int          SRAM_BLOCK_SIZE = 4,
-    parameter int unsigned SRAM_BASE_ADDR  = 32'h0F00_0000
+module axi4_sram_fsm #(
+    parameter int SRAM_WORD_DEPTH = 512,
+    parameter int SRAM_BLOCK_SIZE = 4
 ) (
     axi4_if.slave axi4
 );
@@ -72,6 +72,7 @@ module axi4_sram #(
   axi_req_t s_axi_req_d, s_axi_req_q;
   axi_fsm_t s_state_d, s_state_q;
   logic [`AXI4_ADDR_WIDTH-1:0] s_req_addr_d, s_req_addr_q;
+  logic [`AXI4_ADDR_WIDTH-1:0] s_sram_idx_addr_d, s_sram_idx_addr_q;
   logic [7:0] s_cnt_d, s_cnt_q;
 
   function automatic logic [`AXI4_ADDR_WIDTH-1:0] get_wrap_boundary(
@@ -104,7 +105,6 @@ module axi4_sram #(
     upper_wrap_boundary = wrap_boundary + ((s_axi_req_q.len + 1) << LOG_NR_BYTES);
     // calculate consecutive address
     cons_addr = aligned_addr + (s_cnt_q << LOG_NR_BYTES);
-
     // transaction attributes
     s_state_d = s_state_q;
     s_axi_req_d = s_axi_req_q;
@@ -137,19 +137,21 @@ module axi4_sram #(
     case (s_state_q)
       IDLE: begin
         if (axi4.arvalid) begin
-          axi4.arready = 1'b1;
-          s_axi_req_d  = {axi4.arid, axi4.araddr, axi4.arlen, axi4.arsize, axi4.arburst};
-          s_state_d    = READ;
+          axi4.arready      = 1'b1;
+          s_axi_req_d       = {axi4.arid, axi4.araddr, axi4.arlen, axi4.arsize, axi4.arburst};
+          s_state_d         = READ;
           //  we can request the first address, this saves us time
-          s_ram_en     = 1'b1;
-          s_ram_addr   = axi4.araddr;
-          s_req_addr_d = axi4.araddr;
-          s_cnt_d      = 1;
+          s_ram_en          = 1'b1;
+          s_ram_addr        = axi4.araddr;
+          s_req_addr_d      = axi4.araddr;
+          s_sram_idx_addr_d = axi4.araddr;
+          s_cnt_d           = 1;
         end else if (axi4.awvalid) begin
-          axi4.awready = 1'b1;
-          axi4.wready  = 1'b1;
-          s_axi_req_d  = {axi4.awid, axi4.awaddr, axi4.awlen, axi4.awsize, axi4.awburst};
-          s_ram_addr   = axi4.awaddr;
+          axi4.awready      = 1'b1;
+          axi4.wready       = 1'b1;
+          s_axi_req_d       = {axi4.awid, axi4.awaddr, axi4.awlen, axi4.awsize, axi4.awburst};
+          s_ram_addr        = axi4.awaddr;
+          s_sram_idx_addr_d = axi4.awaddr;
           // we've got our first wvalid so start the write process
           if (axi4.wvalid) begin
             s_ram_en  = 1'b1;
@@ -255,17 +257,34 @@ module axi4_sram #(
     endcase
   end
 
+  dffr #(`AXI4_ADDR_WIDTH) u_req_addr_dffr (
+      axi4.aclk,
+      axi4.aresetn,
+      s_req_addr_d,
+      s_req_addr_q
+  );
+
+  dffr #(`AXI4_ADDR_WIDTH) u_sram_idx_addr_dffr (
+      axi4.aclk,
+      axi4.aresetn,
+      s_sram_idx_addr_d,
+      s_sram_idx_addr_q
+  );
+
+  dffr #(8) u_cnt_dffr (
+      axi4.aclk,
+      axi4.aresetn,
+      s_cnt_d,
+      s_cnt_q
+  );
+
   always_ff @(posedge axi4.aclk, negedge axi4.aresetn) begin
     if (~axi4.aresetn) begin
-      s_state_q    <= IDLE;
-      s_axi_req_q  <= '0;
-      s_req_addr_q <= '0;
-      s_cnt_q      <= '0;
+      s_state_q   <= #1 IDLE;
+      s_axi_req_q <= #1 '0;
     end else begin
-      s_state_q    <= s_state_d;
-      s_axi_req_q  <= s_axi_req_d;
-      s_req_addr_q <= s_req_addr_d;
-      s_cnt_q      <= s_cnt_d;
+      s_state_q   <= #1 s_state_d;
+      s_axi_req_q <= #1 s_axi_req_d;
     end
   end
 
@@ -282,21 +301,17 @@ module axi4_sram #(
   always_comb begin
     s_axi_addr = '0;
     if (axi4.arvalid && axi4.arready) begin
-      s_axi_addr = axi4.araddr - SRAM_BASE_ADDR;
+      s_axi_addr = axi4.araddr;
     end else if (axi4.awvalid && axi4.awready) begin
-      s_axi_addr = axi4.awaddr - SRAM_BASE_ADDR;
+      s_axi_addr = axi4.awaddr;
+    end else begin
+      s_axi_addr = s_sram_idx_addr_q;
     end
   end
 
   // split the addr into 4KB
-  assign s_tech_sram_idx = s_axi_addr[$clog2(
-      SRAM_WORD_DEPTH*SRAM_BIT_WIDTH
-  )+$clog2(
-      SRAM_BLOCK_SIZE
-  ):$clog2(
-      SRAM_WORD_DEPTH*SRAM_BIT_WIDTH
-  )];
-
+  localparam SRAM_ALL_BYTES = $clog2(SRAM_WORD_DEPTH * SRAM_BIT_WIDTH / 8);
+  assign s_tech_sram_idx = s_axi_addr[SRAM_ALL_BYTES+:$clog2(SRAM_BLOCK_SIZE)];
   always_comb begin
     s_tech_sram_en[s_tech_sram_idx]    = s_ram_en;
     s_tech_sram_wen[s_tech_sram_idx]   = s_ram_wen;
@@ -315,7 +330,7 @@ module axi4_sram #(
         .clk_i (axi4.aclk),
         .en_i  (~s_tech_sram_en[i]),
         .wen_i (~s_tech_sram_wen[i]),
-        .bm_i  (s_tech_sram_bm[i]),
+        .bm_i  (~s_tech_sram_bm[i]),
         .addr_i(s_tech_sram_addr[i]),
         .dat_i (s_tech_sram_dat_i[i]),
         .dat_o (s_tech_sram_dat_o[i])

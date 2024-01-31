@@ -32,24 +32,23 @@ endfunction
 
 task automatic SRAMTest::align_wr_rd_test();
   bit [`AXI4_DATA_WIDTH-1:0] wr_data[$] = {};
+  int tmp_num;
 
   // fixed wr and rd
   for (int i = 0; i < 1000; i++) begin
     // $display("%t: %d", $time, i);
     wr_data = {};
-    wr_data.push_back({$random, $random});
-    wr_data.push_back({$random, $random});
-    wr_data.push_back({$random, $random});
-    // foreach (wr_data[i]) begin
-    //   $display("%t wr_data[%d]: %h", $time, i, wr_data[i]);
-    // end
+    tmp_num = {$random} % 60 + 2;
+    for(int j = 0; j < tmp_num; j++) begin
+      wr_data.push_back({$random, $random});
+    end
 
-    this.write(.id('1), .addr(32'h0F00_0000), .len(3), .size(`AXI4_BURST_SIZE_8BYTES),
+    this.write(.id('1), .addr(32'h0F00_0000), .len(tmp_num), .size(`AXI4_BURST_SIZE_8BYTES),
                .burst(`AXI4_BURST_TYPE_INCR), .data(wr_data), .strb(8'b1111_1111));
     repeat (100) @(posedge this.axi4.aclk);
 
     // $display("wr done");
-    this.rd_check(.id('1), .addr(32'h0F00_0000), .len(3), .size(`AXI4_BURST_SIZE_8BYTES),
+    this.rd_check(.id('1), .addr(32'h0F00_0000), .len(tmp_num), .size(`AXI4_BURST_SIZE_8BYTES),
                   .burst(`AXI4_BURST_TYPE_INCR), .ref_data(wr_data), .cmp_type(Helper::EQUL));
     // this.read(.id('1), .addr(32'h0F00_0000), .len(3), .size(`AXI4_BURST_SIZE_8BYTES),
     //           .burst(`AXI4_BURST_TYPE_INCR));
