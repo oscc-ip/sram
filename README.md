@@ -15,7 +15,7 @@
 </p>
 
 ## Features
-* Blocking pipeline AXI4 write and read implementation
+* FSM and blocking pipeline AXI4 write and read implementation
 * All burst type support
 * Aligned address access only
 * 4~32KB singal-port RAM
