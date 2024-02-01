@@ -281,7 +281,7 @@ module axi4_sram_fsm #(
   always_ff @(posedge axi4.aclk, negedge axi4.aresetn) begin
     if (~axi4.aresetn) begin
       s_state_q   <= #1 IDLE;
-      s_axi_req_q <= #1 '0;
+      s_axi_req_q <= #1'0;
     end else begin
       s_state_q   <= #1 s_state_d;
       s_axi_req_q <= #1 s_axi_req_d;
@@ -313,6 +313,10 @@ module axi4_sram_fsm #(
   localparam SRAM_ALL_BYTES = $clog2(SRAM_WORD_DEPTH * SRAM_BIT_WIDTH / 8);
   assign s_tech_sram_idx = s_axi_addr[SRAM_ALL_BYTES+:$clog2(SRAM_BLOCK_SIZE)];
   always_comb begin
+    s_tech_sram_en                     = '0;
+    s_tech_sram_wen                    = '0;
+    s_tech_sram_bm                     = '0;
+    s_tech_sram_addr                   = '0;
     s_tech_sram_en[s_tech_sram_idx]    = s_ram_en;
     s_tech_sram_wen[s_tech_sram_idx]   = s_ram_wen;
     s_tech_sram_bm[s_tech_sram_idx]    = s_ram_bm;
