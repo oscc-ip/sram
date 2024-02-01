@@ -121,19 +121,20 @@ module axi4_sram_fsm #(
           s_state_d         = READ;
           //  we can request the first address, this saves us time
           s_ram_en          = 1'b1;
-          s_ram_addr        = axi4.araddr[SRAM_ADDR_WDITH-1:0];
+          s_ram_addr        = axi4.araddr[SRAM_ADDR_WDITH-1:3];
           s_sram_idx_addr_d = axi4.araddr;
           s_trans_cnt_d     = 1;
         end else if (axi4.awvalid) begin
           axi4.awready      = 1'b1;
           axi4.wready       = 1'b1;
           s_axi_req_d       = {axi4.awid, axi4.awaddr, axi4.awlen, axi4.awsize, axi4.awburst};
-          s_ram_addr        = axi4.awaddr[SRAM_ADDR_WDITH-1:0];
+          s_ram_addr        = axi4.awaddr[SRAM_ADDR_WDITH-1:3];
           s_sram_idx_addr_d = axi4.awaddr;
           // we've got our first wvalid so start the write process
           if (axi4.wvalid) begin
             s_ram_en      = 1'b1;
             s_ram_wen     = 1'b1;
+
             s_state_d     = (axi4.wlast) ? SEND_B : WRITE;
             s_trans_cnt_d = 1;
             // we still have to wait for the first wvalid to arrive
@@ -144,7 +145,7 @@ module axi4_sram_fsm #(
       // we are still missing a wvalid
       WAIT_WVALID: begin
         axi4.wready = 1'b1;
-        s_ram_addr  = s_axi_req_q.addr;
+        s_ram_addr  = s_axi_req_q.addr[SRAM_ADDR_WDITH-1:3];
         // we can now make our first request
         if (axi4.wvalid) begin
           s_ram_en      = 1'b1;
@@ -157,7 +158,7 @@ module axi4_sram_fsm #(
       READ: begin
         // keep request to memory high
         s_ram_en    = 1'b1;
-        s_ram_addr  = s_axi_req_q.addr[SRAM_ADDR_WDITH-1:0];
+        s_ram_addr  = s_axi_req_q.addr[SRAM_ADDR_WDITH-1:3];
         // send the response
         axi4.rvalid = 1'b1;
         axi4.rdata  = s_ram_dat_i;
@@ -168,7 +169,7 @@ module axi4_sram_fsm #(
         if (axi4.rready) begin
           // handle the correct burst type
           case (s_axi_req_q.burst)
-            FIXED, INCR: s_ram_addr = s_trans_nxt_addr[SRAM_ADDR_WDITH-1:0];
+            FIXED, INCR: s_ram_addr = s_axi_req_q.addr[SRAM_ADDR_WDITH-1:3];
             default:     s_ram_addr = '0;
           endcase
           // we need to change the address here for the upcoming request
@@ -191,7 +192,7 @@ module axi4_sram_fsm #(
           s_ram_wen = 1'b1;
           // handle the correct burst type
           case (s_axi_req_q.burst)
-            FIXED, INCR: s_ram_addr = s_trans_nxt_addr[SRAM_ADDR_WDITH-1:0];
+            FIXED, INCR: s_ram_addr = s_axi_req_q.addr[SRAM_ADDR_WDITH-1:3];
             default:     s_ram_addr = '0;
           endcase
           // we can decrease the counter as the master has consumed the read data
