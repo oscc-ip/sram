@@ -26,6 +26,7 @@ SRC_FILE += ../tb/test_top.sv
 SRC_FILE += ../tb/axi4_sram_bpl_tb.sv
 endif
 ifeq ($(SIM_APP), axi4_sram_fsm)
+SRC_FILE += ../rtl/addr_gen.sv
 SRC_FILE += ../rtl/axi4_sram_fsm.sv
 SRC_FILE += ../tb/sram_test.sv
 SRC_FILE += ../tb/test_top.sv

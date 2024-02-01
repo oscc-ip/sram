@@ -31,27 +31,26 @@ module axi4_sram_fsm #(
 ) (
     axi4_if.slave axi4
 );
-  // simplify the sram control signal logic
-  localparam int SRAM_BIT_WIDTH = `AXI4_DATA_WIDTH;
+  // verilog_format: off
+  localparam int SRAM_BIT_WIDTH  = `AXI4_DATA_WIDTH;
+  localparam int SRAM_ADDR_WDITH = $clog2(SRAM_WORD_DEPTH);
+  localparam int SRAM_ALL_BYTES  = $clog2(SRAM_WORD_DEPTH * SRAM_BIT_WIDTH / 8);
+  // verilog_format: on
 
-  logic                          s_ram_en;
-  logic                          s_ram_wen;
-  logic [`AXI4_DATA_WIDTH/8-1:0] s_ram_bm;
-  logic [  `AXI4_ADDR_WIDTH-1:0] s_ram_addr;
-  logic [  `AXI4_DATA_WIDTH-1:0] s_ram_dat_i;
-  logic [  `AXI4_DATA_WIDTH-1:0] s_ram_dat_o;
+  logic                         s_ram_en;
+  logic                         s_ram_wen;
+  logic [  SRAM_ADDR_WDITH-1:0] s_ram_addr;
+  logic [`AXI4_WSTRB_WIDTH-1:0] s_ram_bm;
+  logic [ `AXI4_DATA_WIDTH-1:0] s_ram_dat_i;
+  logic [ `AXI4_DATA_WIDTH-1:0] s_ram_dat_o;
 
   // AXI has the following rules governing the use of bursts:
-  // - for wrapping bursts, the burst length must be 2, 4, 8, or 16
   // - a burst must not cross a 4KB address boundary
-  // - early termination of bursts is not supported.
   typedef enum logic [1:0] {
     FIXED = 2'b00,
     INCR  = 2'b01,
     WRAP  = 2'b10
   } axi_burst_t;
-
-  localparam LOG_NR_BYTES = $clog2(`AXI4_DATA_WIDTH / 8);
 
   typedef struct packed {
     logic [`AXI4_ID_WIDTH-1:0]   id;
@@ -71,68 +70,48 @@ module axi4_sram_fsm #(
 
   axi_req_t s_axi_req_d, s_axi_req_q;
   axi_fsm_t s_state_d, s_state_q;
-  logic [`AXI4_ADDR_WIDTH-1:0] s_req_addr_d, s_req_addr_q;
+  logic [7:0] s_trans_cnt_d, s_trans_cnt_q;
   logic [`AXI4_ADDR_WIDTH-1:0] s_sram_idx_addr_d, s_sram_idx_addr_q;
-  logic [7:0] s_cnt_d, s_cnt_q;
+  logic [    `AXI4_ADDR_WIDTH-1:0] s_trans_nxt_addr;
+  logic [`AXI4_ADDR_OFT_WIDTH-1:0] s_oft_addr;
 
-  function automatic logic [`AXI4_ADDR_WIDTH-1:0] get_wrap_boundary(
-      input logic [`AXI4_ADDR_WIDTH-1:0] unaligned_address, input logic [7:0] len);
-    logic [`AXI4_ADDR_WIDTH-1:0] warp_address = '0;
-    //  for wrapping transfers ax_len can only be of size 1, 3, 7 or 15
-    if (len == 4'b1) begin
-      warp_address[`AXI4_ADDR_WIDTH-1:1+LOG_NR_BYTES] = unaligned_address[`AXI4_ADDR_WIDTH-1:1+LOG_NR_BYTES];
-    end else if (len == 4'b11) begin
-      warp_address[`AXI4_ADDR_WIDTH-1:2+LOG_NR_BYTES] = unaligned_address[`AXI4_ADDR_WIDTH-1:2+LOG_NR_BYTES];
-    end else if (len == 4'b111) begin
-      warp_address[`AXI4_ADDR_WIDTH-1:3+LOG_NR_BYTES] = unaligned_address[`AXI4_ADDR_WIDTH-3:2+LOG_NR_BYTES];
-    end else if (len == 4'b1111) begin
-      warp_address[`AXI4_ADDR_WIDTH-1:4+LOG_NR_BYTES] = unaligned_address[`AXI4_ADDR_WIDTH-3:4+LOG_NR_BYTES];
-    end
-
-    return warp_address;
-  endfunction
-
-  logic [`AXI4_ADDR_WIDTH-1:0] aligned_addr;
-  logic [`AXI4_ADDR_WIDTH-1:0] wrap_boundary;
-  logic [`AXI4_ADDR_WIDTH-1:0] upper_wrap_boundary;
-  logic [`AXI4_ADDR_WIDTH-1:0] cons_addr;
+  assign s_trans_nxt_addr = {s_axi_req_q.addr[`AXI4_ADDR_WIDTH-1:`AXI4_ADDR_OFT_WIDTH], s_oft_addr};
+  addr_gen u_addr_gen (
+      .alen_i  (s_axi_req_q.len),
+      .asize_i (s_axi_req_q.size),
+      .aburst_i(s_axi_req_q.burst),
+      .addr_i  (s_axi_req_q.addr[`AXI4_ADDR_OFT_WIDTH-1:0]),
+      .addr_o  (s_oft_addr)
+  );
 
   always_comb begin
-    // address generation
-    aligned_addr = {s_axi_req_q.addr[`AXI4_ADDR_WIDTH-1:LOG_NR_BYTES], {{LOG_NR_BYTES} {1'b0}}};
-    wrap_boundary = get_wrap_boundary(s_axi_req_q.addr, s_axi_req_q.len);
-    // this will overflow
-    upper_wrap_boundary = wrap_boundary + ((s_axi_req_q.len + 1) << LOG_NR_BYTES);
-    // calculate consecutive address
-    cons_addr = aligned_addr + (s_cnt_q << LOG_NR_BYTES);
-    // transaction attributes
-    s_state_d = s_state_q;
-    s_axi_req_d = s_axi_req_q;
-    s_req_addr_d = s_req_addr_q;
-    s_cnt_d = s_cnt_q;
+    s_state_d        = s_state_q;
+    s_axi_req_d      = s_axi_req_q;
+    s_axi_req_d.addr = s_trans_nxt_addr;
+    s_trans_cnt_d    = s_trans_cnt_q;
     // sram
-    s_ram_dat_o = axi4.wdata;
-    s_ram_bm = axi4.wstrb;
-    s_ram_wen = 1'b0;
-    s_ram_en = 1'b0;
-    s_ram_addr = '0;
+    s_ram_dat_o      = axi4.wdata;
+    s_ram_bm         = axi4.wstrb;
+    s_ram_wen        = 1'b0;
+    s_ram_en         = 1'b0;
+    s_ram_addr       = '0;
     // axi4 request
-    axi4.awready = 1'b0;
-    axi4.arready = 1'b0;
+    axi4.awready     = 1'b0;
+    axi4.arready     = 1'b0;
     // axi4 read
-    axi4.rvalid = 1'b0;
-    axi4.rdata = s_ram_dat_i;
-    axi4.rresp = '0;
-    axi4.rlast = '0;
-    axi4.rid = s_axi_req_q.id;
-    axi4.ruser = 1'b0;
+    axi4.rvalid      = 1'b0;
+    axi4.rdata       = s_ram_dat_i;
+    axi4.rresp       = '0;
+    axi4.rlast       = '0;
+    axi4.rid         = s_axi_req_q.id;
+    axi4.ruser       = 1'b0;
     // axi4 write
-    axi4.wready = 1'b0;
+    axi4.wready      = 1'b0;
     // axi4 response
-    axi4.bvalid = 1'b0;
-    axi4.bresp = 1'b0;
-    axi4.bid = 1'b0;
-    axi4.buser = 1'b0;
+    axi4.bvalid      = 1'b0;
+    axi4.bresp       = 1'b0;
+    axi4.bid         = 1'b0;
+    axi4.buser       = 1'b0;
 
     case (s_state_q)
       IDLE: begin
@@ -142,22 +121,21 @@ module axi4_sram_fsm #(
           s_state_d         = READ;
           //  we can request the first address, this saves us time
           s_ram_en          = 1'b1;
-          s_ram_addr        = axi4.araddr;
-          s_req_addr_d      = axi4.araddr;
+          s_ram_addr        = axi4.araddr[SRAM_ADDR_WDITH-1:0];
           s_sram_idx_addr_d = axi4.araddr;
-          s_cnt_d           = 1;
+          s_trans_cnt_d     = 1;
         end else if (axi4.awvalid) begin
           axi4.awready      = 1'b1;
           axi4.wready       = 1'b1;
           s_axi_req_d       = {axi4.awid, axi4.awaddr, axi4.awlen, axi4.awsize, axi4.awburst};
-          s_ram_addr        = axi4.awaddr;
+          s_ram_addr        = axi4.awaddr[SRAM_ADDR_WDITH-1:0];
           s_sram_idx_addr_d = axi4.awaddr;
           // we've got our first wvalid so start the write process
           if (axi4.wvalid) begin
-            s_ram_en  = 1'b1;
-            s_ram_wen = 1'b1;
-            s_state_d = (axi4.wlast) ? SEND_B : WRITE;
-            s_cnt_d   = 1;
+            s_ram_en      = 1'b1;
+            s_ram_wen     = 1'b1;
+            s_state_d     = (axi4.wlast) ? SEND_B : WRITE;
+            s_trans_cnt_d = 1;
             // we still have to wait for the first wvalid to arrive
           end else s_state_d = WAIT_WVALID;
         end
@@ -169,40 +147,29 @@ module axi4_sram_fsm #(
         s_ram_addr  = s_axi_req_q.addr;
         // we can now make our first request
         if (axi4.wvalid) begin
-          s_ram_en  = 1'b1;
-          s_ram_wen = 1'b1;
-          s_state_d = (axi4.wlast) ? SEND_B : WRITE;
-          s_cnt_d   = 1;
+          s_ram_en      = 1'b1;
+          s_ram_wen     = 1'b1;
+          s_state_d     = (axi4.wlast) ? SEND_B : WRITE;
+          s_trans_cnt_d = 1;
         end
       end
 
       READ: begin
         // keep request to memory high
         s_ram_en    = 1'b1;
-        s_ram_addr  = s_req_addr_q;
+        s_ram_addr  = s_axi_req_q.addr[SRAM_ADDR_WDITH-1:0];
         // send the response
         axi4.rvalid = 1'b1;
         axi4.rdata  = s_ram_dat_i;
         axi4.rid    = s_axi_req_q.id;
-        axi4.rlast  = (s_cnt_q == s_axi_req_q.len + 1);
+        axi4.rlast  = (s_trans_cnt_q == s_axi_req_q.len + 1);
 
         // check that the master is ready, the axi4 must not wait on this
         if (axi4.rready) begin
           // handle the correct burst type
           case (s_axi_req_q.burst)
-            FIXED, INCR: s_ram_addr = cons_addr;
-            WRAP: begin
-              // check if the address reached warp boundary
-              if (cons_addr == upper_wrap_boundary) begin
-                s_ram_addr = wrap_boundary;
-                // address warped beyond boundary
-              end else if (cons_addr > upper_wrap_boundary) begin
-                s_ram_addr = s_axi_req_q.addr + ((s_cnt_q - s_axi_req_q.len) << LOG_NR_BYTES);
-                // we are still in the incremental regime
-              end else begin
-                s_ram_addr = cons_addr;
-              end
-            end
+            FIXED, INCR: s_ram_addr = s_trans_nxt_addr[SRAM_ADDR_WDITH-1:0];
+            default:     s_ram_addr = '0;
           endcase
           // we need to change the address here for the upcoming request
           // we sent the last byte -> go back to idle
@@ -211,10 +178,8 @@ module axi4_sram_fsm #(
             // we already got everything
             s_ram_en  = 1'b0;
           end
-          // save the request address for the next cycle
-          s_req_addr_d = s_ram_addr;
           // we can decrease the counter as the master has consumed the read data
-          s_cnt_d      = s_cnt_q + 1;
+          s_trans_cnt_d = s_trans_cnt_q + 1;
         end
       end
 
@@ -226,24 +191,11 @@ module axi4_sram_fsm #(
           s_ram_wen = 1'b1;
           // handle the correct burst type
           case (s_axi_req_q.burst)
-            FIXED, INCR: s_ram_addr = cons_addr;
-            WRAP: begin
-              // check if the address reached warp boundary
-              if (cons_addr == upper_wrap_boundary) begin
-                s_ram_addr = wrap_boundary;
-                // address warped beyond boundary
-              end else if (cons_addr > upper_wrap_boundary) begin
-                s_ram_addr = s_axi_req_q.addr + ((s_cnt_q - s_axi_req_q.len) << LOG_NR_BYTES);
-                // we are still in the incremental regime
-              end else begin
-                s_ram_addr = cons_addr;
-              end
-            end
+            FIXED, INCR: s_ram_addr = s_trans_nxt_addr[SRAM_ADDR_WDITH-1:0];
+            default:     s_ram_addr = '0;
           endcase
-          // save the request address for the next cycle
-          s_req_addr_d = s_ram_addr;
           // we can decrease the counter as the master has consumed the read data
-          s_cnt_d      = s_cnt_q + 1;
+          s_trans_cnt_d = s_trans_cnt_q + 1;
 
           if (axi4.wlast) s_state_d = SEND_B;
         end
@@ -253,16 +205,8 @@ module axi4_sram_fsm #(
         axi4.bid    = s_axi_req_q.id;
         if (axi4.bready) s_state_d = IDLE;
       end
-
     endcase
   end
-
-  dffr #(`AXI4_ADDR_WIDTH) u_req_addr_dffr (
-      axi4.aclk,
-      axi4.aresetn,
-      s_req_addr_d,
-      s_req_addr_q
-  );
 
   dffr #(`AXI4_ADDR_WIDTH) u_sram_idx_addr_dffr (
       axi4.aclk,
@@ -274,8 +218,8 @@ module axi4_sram_fsm #(
   dffr #(8) u_cnt_dffr (
       axi4.aclk,
       axi4.aresetn,
-      s_cnt_d,
-      s_cnt_q
+      s_trans_cnt_d,
+      s_trans_cnt_q
   );
 
   always_ff @(posedge axi4.aclk, negedge axi4.aresetn) begin
@@ -310,7 +254,6 @@ module axi4_sram_fsm #(
   end
 
   // split the addr into 4KB
-  localparam SRAM_ALL_BYTES = $clog2(SRAM_WORD_DEPTH * SRAM_BIT_WIDTH / 8);
   assign s_tech_sram_idx = s_axi_addr[SRAM_ALL_BYTES+:$clog2(SRAM_BLOCK_SIZE)];
   always_comb begin
     s_tech_sram_en                     = '0;
