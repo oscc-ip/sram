@@ -1,10 +1,10 @@
 # SRAM
 <p>
     <a href=".">
-      <img src="https://img.shields.io/badge/RTL%20dev-in%20progress-silver?style=flat-square">
+      <img src="https://img.shields.io/badge/RTL%20dev-done-green?style=flat-square">
     </a>
     <a href=".">
-      <img src="https://img.shields.io/badge/VCS%20sim-in%20progress-silver?style=flat-square">
+      <img src="https://img.shields.io/badge/VCS%20sim-done-green?style=flat-square">
     </a>
     <a href=".">
       <img src="https://img.shields.io/badge/FPGA%20verif-no%20start-wheat?style=flat-square">
@@ -16,7 +16,7 @@
 
 ## Features
 * FSM and blocking pipeline AXI4 write and read implementation
-* All burst type support
+* FIXED and INCR burst type support
 * Aligned address access only
 * Narrow transfer support
 * 4~32KB singal-port RAM
