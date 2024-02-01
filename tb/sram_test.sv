@@ -31,37 +31,36 @@ function SRAMTest::new(string name, virtual axi4_if.master axi4);
 endfunction
 
 task automatic SRAMTest::align_wr_rd_test();
-  bit [`AXI4_DATA_WIDTH-1:0] wr_data[$] = {};
-  int tmp_num;
+  bit [`AXI4_DATA_WIDTH-1:0] trans_wdata[$];
+  bit [`AXI4_ADDR_WIDTH-1:0] trans_addr;
+  bit [                 2:0] trans_size;
+  int                        trans_len;
+  int                        trans_id;
 
-  // fixed wr and rd
-  for (int i = 0; i < 1000; i++) begin
-    // $display("%t: %d", $time, i);
-    wr_data = {};
-    tmp_num = {$random} % 60 + 2;
-    for(int j = 0; j < tmp_num; j++) begin
-      wr_data.push_back({$random, $random});
+  for (int i = 0; i < 3000; i++) begin
+    trans_len   = {$random} % 60 + 2;
+    trans_id    = {$random} % 16;
+    trans_addr  = 32'h0F00_0000 + {({$random} % 32'h0F30) >> 3, 3'b000};  // slice sram 1
+    trans_size  = {$random} % 4;
+    // $display("trans_addr: %h", trans_addr);
+    trans_wdata = {};
+    for (int j = 0; j < trans_len; j++) begin
+      trans_wdata.push_back({$random, $random});
+      // if (j >= trans_len - 4) begin
+      //   $display("trans_wdata: %h", trans_wdata[j]);
+      // end
+      // trans_wdata.push_back(j);
     end
 
-    this.write(.id('1), .addr(32'h0F00_0000), .len(tmp_num), .size(`AXI4_BURST_SIZE_8BYTES),
-               .burst(`AXI4_BURST_TYPE_INCR), .data(wr_data), .strb(8'b1111_1111));
+    this.write(.id(trans_id), .addr(trans_addr), .len(trans_len), .size(trans_size),
+               .burst(`AXI4_BURST_TYPE_INCR), .data(trans_wdata));
     repeat (100) @(posedge this.axi4.aclk);
 
-    // $display("wr done");
-    this.rd_check(.id('1), .addr(32'h0F00_0000), .len(tmp_num), .size(`AXI4_BURST_SIZE_8BYTES),
-                  .burst(`AXI4_BURST_TYPE_INCR), .ref_data(wr_data), .cmp_type(Helper::EQUL));
-    // this.read(.id('1), .addr(32'h0F00_0000), .len(3), .size(`AXI4_BURST_SIZE_8BYTES),
-    //           .burst(`AXI4_BURST_TYPE_INCR));
-    // repeat (100) @(posedge this.axi4.aclk);
-
-    // foreach (super.rd_data[i]) begin
-    //   if (super.rd_data[i] != wr_data[i]) begin
-    //     $display("%t [%d]: wr_data: %hrd_data: %h", $time, i, wr_data[i], super.rd_data[i]);
-    //   end
-    // end
+    this.rd_check(.id(trans_id), .addr(trans_addr), .len(trans_len), .size(trans_size),
+                  .burst(`AXI4_BURST_TYPE_INCR), .ref_data(trans_wdata), .cmp_type(Helper::EQUL));
 
   end
-  $display("align 8Btyes wr/rd test done");
+  $display("align wr/rd test done");
 endtask
 
 `endif
