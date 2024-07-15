@@ -35,7 +35,7 @@ program automatic test_top (
     sram_hdl = new("sram_test", axi4);
     sram_hdl.init();
     sram_hdl.seq_wr_rd_test();
-    // sram_hdl.align_wr_rd_test();
+    sram_hdl.align_wr_rd_test();
     Helper::end_banner();
     #20000 $finish;
   end

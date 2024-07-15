@@ -38,28 +38,39 @@ endfunction
 task automatic SRAMTest::seq_wr_rd_test();
   bit [`AXI4_DATA_WIDTH-1:0] trans_wdata[$];
   bit [`AXI4_ADDR_WIDTH-1:0] trans_addr;
+  bit [                15:0] trans_num;
+  bit [                 7:0] delta_addr;
 
   $display("seq wr/rd test");
-  trans_addr = 32'h0F00_0000;
-  for (int i = 0; i < 257; i++) begin
-    trans_wdata = {};
-    trans_wdata.push_back(i);
-    this.write(.id('0), .addr(trans_addr), .len(1), .size(`AXI4_BURST_SIZE_2BYTES),
-               .burst(`AXI4_BURST_TYPE_INCR), .data(trans_wdata));
-    repeat (100) @(posedge this.axi4.aclk);
-    // this.rd_check(.id('0), .addr(trans_addr), .len(1), .size(`AXI4_BURST_SIZE_2BYTES),
-    //               .burst(`AXI4_BURST_TYPE_INCR), .ref_data(trans_wdata), .cmp_type(Helper::EQUL));
-    trans_addr += 2;
+  for (int i = 0; i < 4; i++) begin
+    // i = 0: delta_addr = 1 trans_num = 8000 size = 0
+    // i = 1: delta_addr = 2 trans_num = 4000 size = 1
+    // i = 2: delta_addr = 4 trans_num = 2000 size = 2
+    // i = 3: delta_addr = 8 trans_num = 1000 size = 3
+    delta_addr = 1 << i;
+    trans_num  = 1000 * (1 << (3 - i));
+    trans_addr = 32'h0F00_0000;
+    $display("delta_addr: %d trans_num: %d", delta_addr, trans_num);
+    for (int j = 0; j < trans_num; j++) begin
+      trans_wdata = {};
+      trans_wdata.push_back(j);
+      this.write(.id('0), .addr(trans_addr), .len(1), .size(i), .burst(`AXI4_BURST_TYPE_INCR),
+                 .data(trans_wdata));
+      repeat (100) @(posedge this.axi4.aclk);
+      trans_addr += delta_addr;
+    end
+
+    trans_addr = 32'h0F00_0000;
+    for (int j = 0; j < trans_num; j++) begin
+      trans_wdata = {};
+      trans_wdata.push_back(j);
+      this.rd_check(.id('0), .addr(trans_addr), .len(1), .size(i), .burst(`AXI4_BURST_TYPE_INCR),
+                    .ref_data(trans_wdata), .cmp_type(Helper::EQUL));
+      trans_addr += delta_addr;
+    end
+
   end
 
-  trans_addr = 32'h0F00_0000;
-  for (int i = 0; i < 257; i++) begin
-    trans_wdata = {};
-    trans_wdata.push_back(i);
-    this.rd_check(.id('0), .addr(trans_addr), .len(1), .size(`AXI4_BURST_SIZE_2BYTES),
-                  .burst(`AXI4_BURST_TYPE_INCR), .ref_data(trans_wdata), .cmp_type(Helper::EQUL));
-    trans_addr += 2;
-  end
 endtask
 
 task automatic SRAMTest::align_wr_rd_test();
