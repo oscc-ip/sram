@@ -20,6 +20,7 @@ class SRAMTest extends AXI4Master;
   virtual axi4_if.master axi4;
 
   extern function new(string name = "sram_test", virtual axi4_if.master axi4);
+  extern task automatic seq_wr_rd_test();
   extern task automatic align_wr_rd_test();
 endclass
 
@@ -34,6 +35,33 @@ endfunction
 //                 'h1000~'h1FFF
 //                 'h2000~'h2FFF
 //                 'h3000~'h3FFF
+task automatic SRAMTest::seq_wr_rd_test();
+  bit [`AXI4_DATA_WIDTH-1:0] trans_wdata[$];
+  bit [`AXI4_ADDR_WIDTH-1:0] trans_addr;
+
+  $display("seq wr/rd test");
+  trans_addr = 32'h0F00_0000;
+  for (int i = 0; i < 257; i++) begin
+    trans_wdata = {};
+    trans_wdata.push_back(i);
+    this.write(.id('0), .addr(trans_addr), .len(1), .size(`AXI4_BURST_SIZE_2BYTES),
+               .burst(`AXI4_BURST_TYPE_INCR), .data(trans_wdata));
+    repeat (100) @(posedge this.axi4.aclk);
+    // this.rd_check(.id('0), .addr(trans_addr), .len(1), .size(`AXI4_BURST_SIZE_2BYTES),
+    //               .burst(`AXI4_BURST_TYPE_INCR), .ref_data(trans_wdata), .cmp_type(Helper::EQUL));
+    trans_addr += 2;
+  end
+
+  trans_addr = 32'h0F00_0000;
+  for (int i = 0; i < 257; i++) begin
+    trans_wdata = {};
+    trans_wdata.push_back(i);
+    this.rd_check(.id('0), .addr(trans_addr), .len(1), .size(`AXI4_BURST_SIZE_2BYTES),
+                  .burst(`AXI4_BURST_TYPE_INCR), .ref_data(trans_wdata), .cmp_type(Helper::EQUL));
+    trans_addr += 2;
+  end
+endtask
+
 task automatic SRAMTest::align_wr_rd_test();
   bit [`AXI4_DATA_WIDTH-1:0] trans_wdata [$];
   bit [`AXI4_ADDR_WIDTH-1:0] trans_addr;
@@ -43,6 +71,7 @@ task automatic SRAMTest::align_wr_rd_test();
   int                        trans_len;
   int                        trans_id;
 
+  $display("align random burst wr/rd test");
   for (int i = 0; i < 3000; i++) begin
     trans_len   = {$random} % 60 + 2;
     trans_id    = {$random} % 16;
@@ -71,7 +100,8 @@ task automatic SRAMTest::align_wr_rd_test();
     this.rd_check(.id(trans_id), .addr(trans_addr), .len(trans_len), .size(trans_size),
                   .burst(trans_type), .ref_data(trans_wdata), .cmp_type(Helper::EQUL));
   end
-  $display("align burst wr/rd test done");
+  // $display("align random burst wr/rd test done");
 endtask
+
 
 `endif
