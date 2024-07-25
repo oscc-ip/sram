@@ -86,33 +86,34 @@ module axi4_sram_fsm #(
   );
 
   always_comb begin
-    s_state_d        = s_state_q;
-    s_axi_req_d      = s_axi_req_q;
-    s_axi_req_d.addr = s_trans_nxt_addr;
-    s_trans_cnt_d    = s_trans_cnt_q;
+    s_state_d         = s_state_q;
+    s_axi_req_d       = s_axi_req_q;
+    s_axi_req_d.addr  = s_trans_nxt_addr;
+    s_trans_cnt_d     = s_trans_cnt_q;
+    s_sram_idx_addr_d = s_sram_idx_addr_q;
     // sram
-    s_ram_dat_o      = axi4.wdata;
-    s_ram_bm         = axi4.wstrb;
-    s_ram_wen        = 1'b0;
-    s_ram_en         = 1'b0;
-    s_ram_addr       = '0;
+    s_ram_dat_o       = axi4.wdata;
+    s_ram_bm          = axi4.wstrb;
+    s_ram_wen         = 1'b0;
+    s_ram_en          = 1'b0;
+    s_ram_addr        = '0;
     // axi4 request
-    axi4.awready     = 1'b0;
-    axi4.arready     = 1'b0;
+    axi4.awready      = 1'b0;
+    axi4.arready      = 1'b0;
     // axi4 read
-    axi4.rvalid      = 1'b0;
-    axi4.rdata       = s_ram_dat_i;
-    axi4.rresp       = '0;
-    axi4.rlast       = '0;
-    axi4.rid         = s_axi_req_q.id;
-    axi4.ruser       = 1'b0;
+    axi4.rvalid       = 1'b0;
+    axi4.rdata        = s_ram_dat_i;
+    axi4.rresp        = '0;
+    axi4.rlast        = '0;
+    axi4.rid          = s_axi_req_q.id;
+    axi4.ruser        = 1'b0;
     // axi4 write
-    axi4.wready      = 1'b0;
+    axi4.wready       = 1'b0;
     // axi4 response
-    axi4.bvalid      = 1'b0;
-    axi4.bresp       = 1'b0;
-    axi4.bid         = 1'b0;
-    axi4.buser       = 1'b0;
+    axi4.bvalid       = 1'b0;
+    axi4.bresp        = 1'b0;
+    axi4.bid          = 1'b0;
+    axi4.buser        = 1'b0;
 
     case (s_state_q)
       IDLE: begin
@@ -262,6 +263,7 @@ module axi4_sram_fsm #(
     s_tech_sram_wen                    = '0;
     s_tech_sram_bm                     = '0;
     s_tech_sram_addr                   = '0;
+    s_tech_sram_dat_i                  = '0;
     s_tech_sram_en[s_tech_sram_idx]    = s_ram_en;
     s_tech_sram_wen[s_tech_sram_idx]   = s_ram_wen;
     s_tech_sram_bm[s_tech_sram_idx]    = s_ram_bm;
