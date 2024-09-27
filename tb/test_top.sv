@@ -33,7 +33,7 @@ program automatic test_top (
     @(posedge axi4.aresetn);
     Helper::print("tb init done");
     sram_hdl = new("sram_test", axi4);
-    sram_hdl.axi4_init();
+    sram_hdl.init();
     sram_hdl.seq_wr_rd_test();
     sram_hdl.align_wr_rd_test();
     Helper::end_banner();

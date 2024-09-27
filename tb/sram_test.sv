@@ -54,8 +54,8 @@ task automatic SRAMTest::seq_wr_rd_test();
     for (int j = 0; j < trans_num; j++) begin
       trans_wdata = {};
       trans_wdata.push_back(j);
-      this.axi4_write(.id('0), .addr(trans_addr), .len(1), .size(i), .burst(`AXI4_BURST_TYPE_INCR),
-                      .data(trans_wdata));
+      this.write(.id('0), .addr(trans_addr), .len(1), .size(i), .burst(`AXI4_BURST_TYPE_INCR),
+                 .data(trans_wdata));
       repeat (100) @(posedge this.axi4.aclk);
       trans_addr += delta_addr;
     end
@@ -64,9 +64,8 @@ task automatic SRAMTest::seq_wr_rd_test();
     for (int j = 0; j < trans_num; j++) begin
       trans_wdata = {};
       trans_wdata.push_back(j);
-      this.axi4_rd_check(.id('0), .addr(trans_addr), .len(1), .size(i),
-                         .burst(`AXI4_BURST_TYPE_INCR), .ref_data(trans_wdata),
-                         .cmp_type(Helper::EQUL));
+      this.rd_check(.id('0), .addr(trans_addr), .len(1), .size(i), .burst(`AXI4_BURST_TYPE_INCR),
+                    .ref_data(trans_wdata), .cmp_type(Helper::EQUL));
       trans_addr += delta_addr;
     end
 
@@ -105,12 +104,12 @@ task automatic SRAMTest::align_wr_rd_test();
     if (trans_type == `AXI4_BURST_TYPE_FIXED) begin
       trans_len = 1;
     end
-    this.axi4_write(.id(trans_id), .addr(trans_addr), .len(trans_len), .size(trans_size),
-                    .burst(trans_type), .data(trans_wdata));
+    this.write(.id(trans_id), .addr(trans_addr), .len(trans_len), .size(trans_size),
+               .burst(trans_type), .data(trans_wdata));
     repeat (100) @(posedge this.axi4.aclk);
 
-    this.axi4_rd_check(.id(trans_id), .addr(trans_addr), .len(trans_len), .size(trans_size),
-                       .burst(trans_type), .ref_data(trans_wdata), .cmp_type(Helper::EQUL));
+    this.rd_check(.id(trans_id), .addr(trans_addr), .len(trans_len), .size(trans_size),
+                  .burst(trans_type), .ref_data(trans_wdata), .cmp_type(Helper::EQUL));
   end
   // $display("align random burst wr/rd test done");
 endtask
