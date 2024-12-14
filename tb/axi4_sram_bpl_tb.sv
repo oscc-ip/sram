@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Beijing Institute of Open Source Chip
+// Copyright (c) 2023-2024 Miao Yuchi <miaoyuchi@ict.ac.cn>
 // sram is licensed under Mulan PSL v2.
 // You can use this software according to the terms and conditions of the Mulan PSL v2.
 // You may obtain a copy of Mulan PSL v2 at:
